@@ -23,7 +23,7 @@ HEADER = """<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg width="700" height="1375" viewBox="-25 -25 1400 2750"
 xmlns="http://www.w3.org/2000/svg"
 xmlns:xlink="http://www.w3.org/1999/xlink">
-<rect width="1350" height="2700" x="0" y="0" fill="#C0D0C0" />"""
+<rect width="1350" height="2700" x="0" y="0" fill="#C0D0C0" onmousemove="trackit(event);"/>"""
 FOOTER = """</svg>\n"""
 
 ################################################################################
@@ -92,11 +92,11 @@ class StillBall(phylib.phylib_object):
         where cx and cy are the pos of the Ball, r is the BALL_RADIUS, and fill is the
         appropriate value from BALL_COLOURS.
         """
-        return """ <circle cx="%d" cy="%d" r="%d" fill="%s" />\n""" % (
+        return """ <circle cx="%d" cy="%d" r="%d" fill="%s" id="%d" />\n""" % (
             float(self.obj.still_ball.pos.x),
             float(self.obj.still_ball.pos.y),
             BALL_RADIUS,
-            BALL_COLOURS[self.obj.still_ball.number]
+            BALL_COLOURS[self.obj.still_ball.number], self.obj.still_ball.number
         )
 
 ################################################################################
@@ -133,11 +133,11 @@ class RollingBall(phylib.phylib_object):
         where cx and cy are the pos of the Ball, r is the BALL_RADIUS, and fill is the
         appropriate value from BALL_COLOURS.
         """
-        return """ <circle cx="%d" cy="%d" r="%d" fill="%s" />\n""" % (
+        return """ <circle cx="%d" cy="%d" r="%d" fill="%s" id="%d" />\n""" % (
             float(self.obj.rolling_ball.pos.x),
             float(self.obj.rolling_ball.pos.y),
             BALL_RADIUS,
-            BALL_COLOURS[self.obj.rolling_ball.number]
+            BALL_COLOURS[self.obj.rolling_ball.number], self.obj.rolling_ball.number
         )
 
 ################################################################################
@@ -818,7 +818,8 @@ class Game ():
                     cur.close()
                     return None
                 tableID = tableRecord[0]
-                
+                # print(tableID)
+                # print(shotID)
                 cur.execute("""INSERT INTO TABLESHOT (TABLEID, SHOTID) VALUES (?, ?)""", (tableID, shotID))
                 databaseInstance.db.commit()
                 cur.close()

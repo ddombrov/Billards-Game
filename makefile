@@ -1,6 +1,6 @@
 CC = clang
 CFLAGS = -Wall -std=c99 -pedantic
-PYTHONVER = python3.9
+PYTHONVER = python3.11
 
 all: _phylib.so
 
@@ -19,17 +19,29 @@ phylib_wrap.o: phylib_wrap.c
 _phylib.so: phylib_wrap.o
 	$(CC) $(CFLAGS) -shared phylib_wrap.o -L. -L/usr/lib/$(PYTHONVER) -l$(PYTHONVER) -lphylib -o _phylib.so
 
-#  test1: A4Test1.py _phylib.so 
-#  	export LD_LIBRARY_PATH=`pwd` && python3 A4Test1.py
+A2test1: A2Test1.py _phylib.so 
+	 export LD_LIBRARY_PATH=`pwd` && python3 A2Test1.py
 
-#  test2: A4Test2.py _phylib.so 
-#  	export LD_LIBRARY_PATH=`pwd` && python3 A4Test2.py
+A2test2: A2Test2.py _phylib.so 
+	 export LD_LIBRARY_PATH=`pwd` && python3 A2Test2.py
 
-#  test3: A4Test3.py _phylib.so 
-#  	export LD_LIBRARY_PATH=`pwd` && python3 A4Test3.py
+ test1: A3Test1.py _phylib.so 
+ 	 export LD_LIBRARY_PATH=`pwd` && python3 A3Test1.py
 
-#  test4: A4Test4.py _phylib.so 
-#  	export LD_LIBRARY_PATH=`pwd` && python3 A4Test4.py
+ test2: A3Test2.py _phylib.so 
+ 	 export LD_LIBRARY_PATH=`pwd` && python3 A3Test2.py
+
+ test3: A3Test3.py _phylib.so 
+ 	 export LD_LIBRARY_PATH=`pwd` && python3 A3Test3.py
+
+ test4: A3Test4.py _phylib.so 
+ 	 export LD_LIBRARY_PATH=`pwd` && python3 A3Test4.py
+
+ test5: A3Test5.py _phylib.so 
+ 	 export LD_LIBRARY_PATH=`pwd` && python3 A3Test5.py
+
+testPort: server.py _phylib.so 
+	 export LD_LIBRARY_PATH=`pwd` && python3 server.py 3000
 
 clean:
 	rm -f *.o *.so

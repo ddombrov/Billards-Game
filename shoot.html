@@ -1,0 +1,62 @@
+<html>
+  <head>
+    <title> Shoot! </title>
+  </head>
+  <body>
+    <form action="display2.html" method="post">
+      <h3> Rolling Ball </h3>
+        <label for="rb_number">Number:</label>
+        <input type="text" id="rb_number" name="rb_number" size="2"
+	       value="0" readonly />
+        <label for="rb_x">X (28.5-1321.5):</label>
+        <input type="text" id="rb_x" name="rb_x" size="6" />
+        <label for="rb_y">Y (28.5-2671.5):</label>
+        <input type="text" id="rb_y" name="rb_y" size="6" />
+        <label for="rb_dx">&Delta;X:</label>
+        <input type="text" id="rb_dx" name="rb_dx" size="6" />
+        <label for="rb_dy">&Delta;Y:</label>
+        <input type="text" id="rb_dy" name="rb_dy" size="6" />
+      <h3> <input type="submit" value="Shoot!" /> </h3>
+    </form>
+  </body>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js">
+  </script>
+
+  <script>
+    track = true;
+    function trackon()
+    {
+      track = true;
+      // alert( track );
+    } 
+
+    function trackit( event )
+    {
+if (track)
+{
+  $('#valx').remove();
+  $('#valy').remove();
+  $('<div id="valx">'+event.pageX+'</div>').appendTo("#x");
+  $('<div id="valy">'+event.pageY+'</div>').appendTo("#y");
+}
+    }
+
+  </script>
+</head>
+<body>
+  <svg width="500" height="500" viewBox="0 0 500 500"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   id="table" >
+   <!-- <image xlink:href="table-0.svg" width="400" height="400" x="50" y="50" onmousemove="trackit(event);"/> -->
+   <!-- <image id="table-image" width="400" height="400" x="50" y="50" onmousemove="trackit(event);"/> -->
+
+    <!-- <rect width="400" height="400" x="50" y="50" fill="darkgreen" onmousemove="trackit(event);"/> -->
+  </svg>
+   <!-- <button id="b1" onclick="trackon();">  tracking on </button> -->
+  <!-- <div id="x">x=</div>
+  <div id="y">y=</div> -->
+
+</body>
+</html>
