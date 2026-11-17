@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>8-Ball</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    .home {
+      min-height: 100%;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 40px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+    }
+    .hero { text-align: center; }
+    .ball-row { display: flex; justify-content: center; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
+    h1 { margin: 0; font-size: 48px; font-weight: 800; letter-spacing: -0.02em; }
+    .modes { width: 100%; display: grid; gap: 12px; }
+    .mode {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      width: 100%;
+      padding: 16px;
+      border-radius: calc(var(--radius) + 4px);
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--foreground);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .mode:hover { border-color: var(--primary); background: var(--accent); }
+    .mode .title { font-weight: 600; font-size: 16px; }
+    .mode .sub { color: var(--muted-foreground); font-size: 13px; }
+    .mode-icon { display: flex; flex: none; }
+    .mode-icon svg + svg { margin-left: -14px; }
+    .rules { margin: 0 0 16px; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; }
+    .players { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 480px) { .players { grid-template-columns: 1fr; } h1 { font-size: 38px; } }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position: absolute" id="defs"></svg>
+
+  <main class="home">
+    <div class="hero">
+      <div class="ball-row" id="ballRow"></div>
+      <h1>8-Ball</h1>
+    </div>
+
+    <div class="modes">
+      <button type="button" class="mode" id="playDevice">
+        <span class="mode-icon" id="deviceIcon"></span>
+        <span>
+          <div class="title">Play on this device</div>
+          <div class="sub">Two players take turns at the same screen.</div>
+        </span>
+      </button>
+    </div>
+
+    <button type="button" class="btn btn-ghost" id="openRules">Rules</button>
+  </main>
+
+  <!-- New game -->
+  <div class="overlay" id="setupDialog" hidden>
+    <form class="dialog" id="setupForm" novalidate>
+      <h2>Play on this device</h2>
+      <p class="description">Enter both players' names. Player 1 breaks.</p>
+      <div class="body">
+        <div class="players">
+          <div>
+            <div class="field-label"><label for="player1">Player 1</label></div>
+            <input class="input" id="player1" name="player1_name" maxlength="20" placeholder="Name" autocomplete="off" />
+          </div>
+          <div>
+            <div class="field-label"><label for="player2">Player 2</label></div>
+            <input class="input" id="player2" name="player2_name" maxlength="20" placeholder="Name" autocomplete="off" />
+          </div>
+        </div>
+        <p class="error" id="setupError" hidden></p>
+      </div>
+      <div class="footer">
+        <button type="button" class="btn btn-outline" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary" id="startButton" disabled>Start game</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Resume -->
+  <div class="overlay" id="resumeDialog" hidden>
+    <div class="dialog small">
+      <h2>Resume your game?</h2>
+      <p class="description" id="resumeText"></p>
+      <div class="footer">
+        <button type="button" class="btn btn-outline" id="newInstead">New game</button>
+        <button type="button" class="btn btn-primary" id="resumeButton">Resume game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rules -->
+  <div class="overlay" id="rulesDialog" hidden>
+    <div class="dialog">
+      <h2>Rules</h2>
+      <div class="body" id="rulesBody"></div>
+      <div class="footer"><button type="button" class="btn btn-primary" data-close>Got it</button></div>
+    </div>
+  </div>
+
+  <script src="/balls.js"></script>
+  <script>
+    addBallDefs(document.getElementById("defs"));
+    const row = document.getElementById("ballRow");
+    [1, 2, 8, 11, 13].forEach((n, i) => row.appendChild(ballIcon(n, i === 2 ? 52 : 40)));
+    const icon = document.getElementById("deviceIcon");
+    icon.appendChild(ballIcon(0, 40));
+    icon.appendChild(ballIcon(8, 40));
+    document.getElementById("rulesBody").innerHTML = RULES_HTML;
+
+    const $ = (id) => document.getElementById(id);
+    const open = (id) => { $(id).hidden = false; };
+    const close = (id) => { $(id).hidden = true; };
+    document.querySelectorAll(".overlay").forEach((overlay) => {
+      overlay.addEventListener("click", (e) => {
+        if (e.target === overlay || e.target.closest("[data-close]")) overlay.hidden = true;
+      });
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") document.querySelectorAll(".overlay").forEach((o) => (o.hidden = true));
+    });
+
+    const p1 = $("player1"), p2 = $("player2"), error = $("setupError"), start = $("startButton");
+    const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+    function showError(message) {
+      error.textContent = message;
+      error.hidden = !message;
+    }
+    function validate() {
+      const filled = p1.value.trim() && p2.value.trim();
+      const clash = filled && sameName(p1.value, p2.value);
+      showError(clash ? "That name is taken, pick another." : "");
+      start.disabled = !filled || clash;
+    }
+    [p1, p2].forEach((input) => input.addEventListener("input", validate));
+
+    function openSetup() {
+      showError("");
+      validate();
+      open("setupDialog");
+      (p1.value.trim() ? p2 : p1).focus();
+    }
+
+    $("setupForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      validate();
+      if (start.disabled) return;
+      start.disabled = true;
+      try {
+        await startGame(p1.value.trim(), p2.value.trim());
+      } catch (err) {
+        showError(err.message);
+        start.disabled = false;
+      }
+    });
+
+    // Like starting a game on one device in Splendor: offer to pick the unfinished one back up.
+    let resumable = null;
+    async function checkResume() {
+      const key = lastGame();
+      if (!key) return;
+      try {
+        const response = await fetch("/api/games/" + encodeURIComponent(key));
+        if (!response.ok) return forgetGame();
+        const state = await response.json();
+        if (state.winner === null) resumable = state;
+      } catch { /* server not reachable; nothing to resume */ }
+    }
+
+    $("playDevice").addEventListener("click", async () => {
+      await checkResume();
+      if (resumable) {
+        $("resumeText").textContent = `${resumable.players[0]} vs ${resumable.players[1]} is still in progress.`;
+        open("resumeDialog");
+      } else {
+        openSetup();
+      }
+    });
+    $("resumeButton").addEventListener("click", () => { location.href = "/play.html?game=" + encodeURIComponent(resumable.key); });
+    $("newInstead").addEventListener("click", () => {
+      close("resumeDialog");
+      p1.value = resumable.players[0];
+      p2.value = resumable.players[1];
+      openSetup();
+    });
+    $("openRules").addEventListener("click", () => open("rulesDialog"));
+  </script>
+</body>
+</html>

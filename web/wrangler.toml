@@ -1,0 +1,15 @@
+name = "billiards"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# The game's pages, served from the same address as the API so there is one link to share.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+# The real database. Local development ignores the id and uses a database in the .wrangler folder.
+[[d1_databases]]
+binding = "DB"
+database_name = "billiards"
+database_id = "0d1f1db2-407f-4d47-aec0-5149875d6324"

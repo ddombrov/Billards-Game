@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8-Ball</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/theme.css">
+<style>
+  body { display: flex; flex-direction: column; align-items: center; padding: 12px 16px 20px; }
+  .wrap { width: 100%; max-width: 1180px; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .topbar .title { font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+
+  /* Scoreboard */
+  .scoreboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) + 4px);
+    overflow: hidden;
+  }
+  .player {
+    padding: 12px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    transition: background .25s;
+  }
+  .player + .player { border-left: 1px solid var(--border); }
+  .player.right { align-items: flex-end; text-align: right; }
+  .player.active { background: linear-gradient(180deg, rgba(217,177,90,.12), rgba(217,177,90,0)); }
+  .player.active::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 3px;
+    background: var(--primary);
+  }
+  .player .top { display: flex; align-items: center; gap: 10px; }
+  .player.right .top { flex-direction: row-reverse; }
+  .player .name { font-size: 18px; font-weight: 700; }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--primary-foreground);
+    background: var(--primary);
+    padding: 2px 8px;
+    border-radius: 99px;
+    visibility: hidden;
+  }
+  .player.active .badge { visibility: visible; }
+  .player .group { color: var(--muted-foreground); font-size: 13px; }
+  .tray { display: flex; gap: 4px; min-height: 22px; }
+  .player.right .tray { flex-direction: row-reverse; }
+
+  .status { height: 48px; display: flex; align-items: center; justify-content: center; }
+  #message {
+    padding: 6px 16px;
+    border-radius: 99px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  #board {
+    width: 100%;
+    max-height: calc(100vh - 250px);
+    min-height: 240px;
+    display: block;
+    touch-action: none;
+    user-select: none;
+    cursor: crosshair;
+    filter: drop-shadow(0 18px 30px rgba(0,0,0,.55));
+  }
+  #board.busy { cursor: progress; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 14px;
+    color: var(--muted-foreground);
+    font-size: 13px;
+  }
+  .meter { display: flex; align-items: center; gap: 10px; }
+  .power { width: 240px; height: 8px; background: var(--secondary); border-radius: 4px; overflow: hidden; }
+  .power div {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #5fbf6b, var(--primary) 60%, #e5533d);
+    background-size: 240px 100%;
+  }
+  .rules { margin: 0 0 16px; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; }
+  .winner-ball { display: flex; justify-content: center; margin-bottom: 12px; }
+  .dialog.center { text-align: center; }
+  .dialog.center .footer { justify-content: center; }
+
+  @media (max-width: 700px) {
+    .controls { flex-direction: column; align-items: stretch; }
+    .power { width: 100%; }
+    .player { padding: 10px 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <button type="button" class="btn btn-ghost" id="leave">&larr; Leave game</button>
+    <span class="title">8-Ball</span>
+    <button type="button" class="btn btn-ghost" id="openRules">Rules</button>
+  </div>
+
+  <div class="scoreboard">
+    <div class="player" id="p0">
+      <div class="top"><span class="name"></span><span class="badge">To shoot</span></div>
+      <div class="group"></div>
+      <div class="tray"></div>
+    </div>
+    <div class="player right" id="p1">
+      <div class="top"><span class="name"></span><span class="badge">To shoot</span></div>
+      <div class="group"></div>
+      <div class="tray"></div>
+    </div>
+  </div>
+
+  <div class="status"><span id="message">Loading…</span></div>
+
+  <svg id="board" viewBox="-130 -130 2960 1610" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#7a4726"/>
+        <stop offset=".5" stop-color="#5c331a"/>
+        <stop offset="1" stop-color="#3f2210"/>
+      </linearGradient>
+      <radialGradient id="cloth" cx="50%" cy="50%" r="65%">
+        <stop offset="0" stop-color="#2f8f5d"/>
+        <stop offset="1" stop-color="#1a5e3c"/>
+      </radialGradient>
+      <radialGradient id="pocket" r="50%">
+        <stop offset="0" stop-color="#000"/>
+        <stop offset=".46" stop-color="#000" stop-opacity=".95"/>
+        <stop offset=".5" stop-color="#000" stop-opacity=".45"/>
+        <stop offset="1" stop-color="#000" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="stick" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#1b1009"/>
+        <stop offset=".28" stop-color="#3b2212"/>
+        <stop offset=".3" stop-color="#c79a62"/>
+        <stop offset="1" stop-color="#f1dcb8"/>
+      </linearGradient>
+      <clipPath id="railClip"><rect x="-130" y="-130" width="2960" height="1610" rx="70"/></clipPath>
+    </defs>
+
+    <rect x="-130" y="-130" width="2960" height="1610" rx="70" fill="url(#wood)"/>
+    <rect x="-118" y="-118" width="2936" height="1586" rx="62" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="4"/>
+    <g id="diamonds"></g>
+    <rect x="-34" y="-34" width="2768" height="1418" rx="10" fill="#14533a"/>
+    <rect x="0" y="0" width="2700" height="1350" fill="url(#cloth)"/>
+    <rect x="0" y="0" width="2700" height="1350" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="10"/>
+    <line x1="675" y1="0" x2="675" y2="1350" stroke="#fff" stroke-opacity=".10" stroke-width="4"/>
+    <circle cx="675" cy="675" r="7" fill="#fff" fill-opacity=".22"/>
+    <circle cx="2025" cy="675" r="7" fill="#fff" fill-opacity=".22"/>
+    <g id="pockets" clip-path="url(#railClip)"></g>
+    <g id="guide"></g>
+    <g id="balls"></g>
+    <g id="cue"></g>
+  </svg>
+
+  <div class="controls">
+    <span>Press on the table and drag away from the cue ball to aim. Pull farther for more power, release to shoot.</span>
+    <div class="meter">
+      <span>Power</span>
+      <div class="power"><div id="powerBar"></div></div>
+      <button type="button" class="btn btn-outline" id="skip" hidden>Skip</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="leaveDialog" hidden>
+  <div class="dialog small">
+    <h2>Leave this game?</h2>
+    <p class="description">The game is saved. You can resume it from the home page.</p>
+    <div class="footer">
+      <button type="button" class="btn btn-outline" data-close>Stay</button>
+      <a class="btn btn-primary" href="/">Leave</a>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="rulesDialog" hidden>
+  <div class="dialog">
+    <h2>Rules</h2>
+    <div class="body" id="rulesBody"></div>
+    <div class="footer"><button type="button" class="btn btn-primary" data-close>Got it</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="winnerDialog" hidden>
+  <div class="dialog small center">
+    <div class="winner-ball" id="winnerBall"></div>
+    <h2 id="winnerTitle"></h2>
+    <p class="description" id="winnerText"></p>
+    <p class="error" id="rematchError" hidden></p>
+    <div class="footer">
+      <a class="btn btn-outline" href="/">Back to home</a>
+      <button type="button" class="btn btn-primary" id="rematch">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script src="/balls.js"></script>
+<script type="module">
+import { loadEngine, simulateShot, FRAME_RATE } from "/engine.js";
+import { MAX_SPEED, TABLE_LENGTH, TABLE_WIDTH } from "/rules.js";
+
+// Engine coordinates are portrait (x across 0-1350, y along 0-2700). The board is drawn
+// landscape with the head of the table on the left.
+const BALL_RADIUS = 28.5, HOLE_RADIUS = 114;
+const POWER_PER_MM = 9, PLAYBACK = 2;
+
+const gameKey = new URLSearchParams(location.search).get("game");
+loadEngine();
+const $ = (id) => document.getElementById(id);
+const board = $("board");
+const ballLayer = $("balls");
+const guideLayer = $("guide");
+const cueLayer = $("cue");
+const powerBar = $("powerBar");
+const skipButton = $("skip");
+const messageEl = $("message");
+
+let state = null;
+let busy = false;
+let dragging = false;
+let skipRequested = false;
+
+const toScreen = (x, y) => [TABLE_LENGTH - y, x];
+
+addBallDefs(board);
+$("rulesBody").innerHTML = RULES_HTML;
+
+document.querySelectorAll(".overlay").forEach((overlay) => {
+  overlay.addEventListener("click", (e) => {
+    if (overlay.id !== "winnerDialog" && (e.target === overlay || e.target.closest("[data-close]"))) overlay.hidden = true;
+  });
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") ["leaveDialog", "rulesDialog"].forEach((id) => ($(id).hidden = true));
+});
+$("leave").addEventListener("click", () => ($("leaveDialog").hidden = false));
+$("openRules").addEventListener("click", () => ($("rulesDialog").hidden = false));
+
+function drawTable() {
+  const pockets = $("pockets");
+  for (const [x, y] of [[0, 0], [0, 1350], [0, 2700], [1350, 0], [1350, 1350], [1350, 2700]]) {
+    const [sx, sy] = toScreen(x, y);
+    // The gradient fades out at the engine's real capture radius, so what you see is what drops.
+    el("circle", { cx: sx, cy: sy, r: HOLE_RADIUS, fill: "url(#pocket)" }, pockets);
+  }
+  const diamonds = $("diamonds");
+  const diamond = (cx, cy) => el("path", {
+    d: `M${cx} ${cy - 14} L${cx + 9} ${cy} L${cx} ${cy + 14} L${cx - 9} ${cy} Z`,
+    fill: "#efe3c8", "fill-opacity": .85 }, diamonds);
+  for (let i = 1; i < 8; i++) {
+    if (i === 4) continue;
+    diamond(i * TABLE_LENGTH / 8, -82);
+    diamond(i * TABLE_LENGTH / 8, TABLE_WIDTH + 82);
+  }
+  for (let i = 1; i < 4; i++) {
+    diamond(-82, i * TABLE_WIDTH / 4);
+    diamond(TABLE_LENGTH + 82, i * TABLE_WIDTH / 4);
+  }
+}
+
+const ballNodes = {};
+function placeBalls(balls) {
+  const present = new Set();
+  for (const [n, x, y] of balls) {
+    present.add(n);
+    if (!ballNodes[n]) {
+      ballNodes[n] = ballSVG(n, BALL_RADIUS * 2, true);
+      ballLayer.appendChild(ballNodes[n]);
+    }
+    const [sx, sy] = toScreen(x, y);
+    ballNodes[n].setAttribute("transform", `translate(${sx} ${sy})`);
+  }
+  for (const n of Object.keys(ballNodes)) {
+    if (!present.has(Number(n))) {
+      ballNodes[n].remove();
+      delete ballNodes[n];
+    }
+  }
+}
+
+function inGroup(n, group) {
+  return group === "solids" ? n >= 1 && n <= 7 : group === "stripes" ? n >= 9 && n <= 15 : false;
+}
+
+function render() {
+  document.title = `${state.players[0]} vs ${state.players[1]} · 8-Ball`;
+  messageEl.textContent = busy ? "Rolling…" : state.message;
+  const onTable = new Set(state.balls.map(b => b[0]));
+  state.players.forEach((name, i) => {
+    const card = $("p" + i);
+    card.classList.toggle("active", state.winner === null && state.turn === i);
+    card.querySelector(".name").textContent = name;
+    const group = state.groups[i];
+    const left = group ? [...onTable].filter(n => inGroup(n, group)).sort((a, b) => a - b) : [];
+    card.querySelector(".group").textContent = !group ? "Open table"
+      : (group === "solids" ? "Solids" : "Stripes") + (left.length ? ` · ${left.length} left` : " · on the 8");
+    const tray = card.querySelector(".tray");
+    tray.innerHTML = "";
+    if (group && left.length === 0 && onTable.has(8)) left.push(8);
+    for (const n of left) tray.appendChild(ballIcon(n, 22));
+  });
+  if (state.winner !== null) {
+    forgetGame();
+    const ball = $("winnerBall");
+    ball.innerHTML = "";
+    ball.appendChild(ballIcon(8, 56));
+    $("winnerTitle").textContent = state.players[state.winner] + " wins!";
+    $("winnerText").textContent = state.message;
+    $("winnerDialog").hidden = false;
+  }
+}
+
+$("rematch").addEventListener("click", async () => {
+  const button = $("rematch");
+  button.disabled = true;
+  try {
+    await startGame(state.players[0], state.players[1]);
+  } catch (error) {
+    $("rematchError").textContent = error.message;
+    $("rematchError").hidden = false;
+    button.disabled = false;
+  }
+});
+
+function cueBall() {
+  const cue = state && state.balls.find(b => b[0] === 0);
+  return cue ? toScreen(cue[1], cue[2]) : null;
+}
+
+function pointerToBoard(event) {
+  const pt = board.createSVGPoint();
+  pt.x = event.clientX;
+  pt.y = event.clientY;
+  const p = pt.matrixTransform(board.getScreenCTM().inverse());
+  return [p.x, p.y];
+}
+
+// Shot in screen space: unit direction, pull distance and speed in mm/s.
+function shotFromPointer(point) {
+  const [cx, cy] = cueBall();
+  const dx = cx - point[0], dy = cy - point[1];
+  const pull = Math.hypot(dx, dy) || 1;
+  return { ux: dx / pull, uy: dy / pull, pull, speed: Math.min(pull * POWER_PER_MM, MAX_SPEED) };
+}
+
+// Where the cue ball first touches a ball or cushion along the aim line.
+function traceShot(cx, cy, ux, uy) {
+  let best = { t: Infinity, ball: null };
+  for (const [n, x, y] of state.balls) {
+    if (n === 0) continue;
+    const [bx, by] = toScreen(x, y);
+    const ox = cx - bx, oy = cy - by;
+    const b = ux * ox + uy * oy;
+    const c = ox * ox + oy * oy - 4 * BALL_RADIUS * BALL_RADIUS;
+    const disc = b * b - c;
+    if (disc < 0) continue;
+    const t = -b - Math.sqrt(disc);
+    if (t > 0 && t < best.t) best = { t, ball: [bx, by] };
+  }
+  const walls = [
+    ux < 0 ? (BALL_RADIUS - cx) / ux : ux > 0 ? (TABLE_LENGTH - BALL_RADIUS - cx) / ux : Infinity,
+    uy < 0 ? (BALL_RADIUS - cy) / uy : uy > 0 ? (TABLE_WIDTH - BALL_RADIUS - cy) / uy : Infinity,
+  ];
+  for (const t of walls) if (t > 0 && t < best.t) best = { t, ball: null };
+  return best;
+}
+
+function drawAim(shot) {
+  guideLayer.innerHTML = "";
+  cueLayer.innerHTML = "";
+  const [cx, cy] = cueBall();
+  const { ux, uy } = shot;
+
+  const hit = traceShot(cx, cy, ux, uy);
+  const gx = cx + ux * hit.t, gy = cy + uy * hit.t;
+  el("line", { x1: cx, y1: cy, x2: gx, y2: gy, stroke: "#fff", "stroke-opacity": .55,
+               "stroke-width": 4, "stroke-dasharray": "16 14" }, guideLayer);
+  el("circle", { cx: gx, cy: gy, r: BALL_RADIUS, fill: "#fff", "fill-opacity": .08,
+                 stroke: "#fff", "stroke-opacity": .7, "stroke-width": 4 }, guideLayer);
+  if (hit.ball) {
+    const [bx, by] = hit.ball;
+    const nx = bx - gx, ny = by - gy, len = Math.hypot(nx, ny);
+    el("line", { x1: bx, y1: by, x2: bx + nx / len * 260, y2: by + ny / len * 260,
+                 stroke: "#d9b15a", "stroke-opacity": .85, "stroke-width": 5,
+                 "stroke-linecap": "round" }, guideLayer);
+  }
+
+  const gap = BALL_RADIUS + 10 + Math.min(shot.pull, MAX_SPEED / POWER_PER_MM) * .35;
+  const angle = Math.atan2(uy, ux) * 180 / Math.PI;
+  const stick = el("g", { transform: `translate(${cx} ${cy}) rotate(${angle})` }, cueLayer);
+  const length = 1300;
+  const points = `${-gap - length},16 ${-gap - length},-16 ${-gap},-7 ${-gap},7`;
+  el("polygon", { points, transform: "translate(10 14)", fill: "#000", "fill-opacity": .3 }, stick);
+  el("polygon", { points, fill: "url(#stick)" }, stick);
+  el("rect", { x: -gap - 34, y: -7.5, width: 24, height: 15, fill: "#f4f1ea" }, stick);
+  el("rect", { x: -gap - 10, y: -7, width: 10, height: 14, rx: 2, fill: "#3a78c2" }, stick);
+
+  powerBar.style.width = (100 * shot.speed / MAX_SPEED) + "%";
+}
+
+function clearAim() {
+  guideLayer.innerHTML = "";
+  cueLayer.innerHTML = "";
+  powerBar.style.width = "0";
+}
+
+board.addEventListener("pointerdown", event => {
+  if (busy || !state || state.winner !== null || !cueBall()) return;
+  board.setPointerCapture(event.pointerId);
+  dragging = true;
+  drawAim(shotFromPointer(pointerToBoard(event)));
+});
+
+board.addEventListener("pointermove", event => {
+  if (dragging) drawAim(shotFromPointer(pointerToBoard(event)));
+});
+
+board.addEventListener("pointerup", event => {
+  if (!dragging) return;
+  dragging = false;
+  const shot = shotFromPointer(pointerToBoard(event));
+  clearAim();
+  if (shot.speed < 60) return;
+  // Screen direction (ux, uy) maps back to table velocity (vx = uy, vy = -ux).
+  shoot(shot.uy * shot.speed, -shot.ux * shot.speed);
+});
+
+board.addEventListener("pointercancel", () => { dragging = false; clearAim(); });
+
+async function shoot(vx, vy) {
+  busy = true;
+  board.classList.add("busy");
+  render();
+  let failure = null;
+  try {
+    const result = await simulateShot(state.balls, vx, vy);
+    // Save while the shot plays; the Worker applies the rules and returns the next turn.
+    const saved = fetch("/api/games/" + encodeURIComponent(gameKey) + "/shots", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shot: state.shots, vx, vy, time: (result.frames.length - 1) * FRAME_RATE,
+                             pocketed: result.pocketed, balls: result.balls }),
+    }).then(async (response) => {
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "The shot could not be saved.");
+      return body;
+    });
+    saved.catch(() => {}); // reported after the animation below
+    await animate(result.frames);
+    state = await saved;
+  } catch (error) {
+    console.error(error);
+    failure = error;
+    await load();
+  } finally {
+    busy = false;
+    board.classList.remove("busy");
+    if (state) {
+      placeBalls(state.balls);
+      render();
+    }
+    if (failure) messageEl.textContent = "Shot failed: " + failure.message;
+  }
+}
+
+function animate(frames) {
+  skipRequested = false;
+  skipButton.hidden = false;
+  return new Promise(resolve => {
+    let start = null;
+    function step(now) {
+      if (start === null) start = now;
+      const index = Math.min(Math.floor((now - start) / 1000 * PLAYBACK / FRAME_RATE), frames.length - 1);
+      placeBalls(frames[index]);
+      if (skipRequested || index === frames.length - 1) {
+        placeBalls(frames[frames.length - 1]);
+        skipButton.hidden = true;
+        resolve();
+      } else {
+        requestAnimationFrame(step);
+      }
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+skipButton.addEventListener("click", () => { skipRequested = true; });
+
+async function load() {
+  const response = await fetch("/api/games/" + encodeURIComponent(gameKey));
+  if (!response.ok) {
+    forgetGame();
+    messageEl.innerHTML = 'This game could not be found. <a href="/" style="color: var(--primary)">Back to home</a>';
+    return;
+  }
+  state = await response.json();
+  if (state.winner === null) rememberGame(state.key);
+  placeBalls(state.balls);
+  render();
+}
+
+drawTable();
+load();
+</script>
+</body>
+</html>
