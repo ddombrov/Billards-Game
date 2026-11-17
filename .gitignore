@@ -1,0 +1,12 @@
+# Build outputs of the Python/C version (make)
+*.o
+*.so
+phylib.py
+phylib_wrap.c
+__pycache__/
+phylib.db
+table-*.svg
+
+# Cloudflare version
+web/node_modules/
+web/.wrangler/

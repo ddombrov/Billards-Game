@@ -661,31 +661,24 @@ class Database ():
 
         cur = self.db.cursor()
 
-        cur.execute(
-            """SELECT PLAYERID FROM Player WHERE PLAYERNAME = ?""", (playerName,))
-        playerRecord = cur.fetchone()
-        if playerRecord is None:
+        # Names are not unique across games, so take the most recent game with this name
+        # that has a player with this name.
+        cur.execute("""SELECT Player.PLAYERID, Game.GAMEID FROM Player
+            JOIN Game ON Player.GAMEID = Game.GAMEID
+            WHERE Game.GAMENAME = ? AND Player.PLAYERNAME = ?
+            ORDER BY Game.GAMEID DESC LIMIT 1""", (gameName, playerName))
+        record = cur.fetchone()
+        if record is None:
+            cur.close()
             return None
-        playerID = playerRecord[0]
-
-        cur.execute(
-            """SELECT GAMEID FROM Game WHERE GAMENAME = ?""", (gameName,))
-        gameRecord = cur.fetchone()
-        if gameRecord is None:
-            return None
-        gameID = gameRecord[0]
+        playerID, gameID = record
 
         cur.execute(
             """INSERT INTO Shot (PLAYERID, GAMEID) VALUES (?, ?)""", (playerID, gameID))
-        cur.execute("SELECT MAX(PLAYERID) FROM Shot")
-        shotIDRecord = cur.fetchone()
+        shotID = cur.lastrowid
 
         self.db.commit()
         cur.close()
-
-        if shotIDRecord is None:
-            return None
-        shotID = shotIDRecord[0]
 
         return shotID
 
@@ -699,6 +692,7 @@ class Game ():
     def __init__(self, gameID=None, gameName=None, player1Name=None, player2Name=None):
 
         databaseInstance = Database()
+        databaseInstance.createDB()
 
         # (i) with an integer gameID value, and all other arguments set to None, or
         if gameID is not None and (gameName is None and player1Name is None and player2Name is None):
@@ -712,6 +706,9 @@ class Game ():
         elif gameID is None and (gameName is not None and player1Name is not None and player2Name is not None):
 
             # For the second constructor, all 3 names shall be added as attributes to the object.
+            self.gameName = gameName
+            self.player1Name = player1Name
+            self.player2Name = player2Name
             self.gameID = databaseInstance.setGame(
                 gameName, player1Name, player2Name)
 
@@ -724,102 +721,92 @@ class Game ():
         self.table = None
 
     def shoot(self, gameName, playerName, table, xvel, yvel):
-
+        """
+        Fires the cue ball with velocity (xvel, yvel) and simulates until every ball stops.
+        Returns (frames, pocketed, finalTable): frames is a list of [[number, x, y], ...]
+        snapshots taken every FRAME_RATE seconds, pocketed lists ball numbers in the order
+        they dropped, and finalTable is the resting table.
+        """
         databaseInstance = Database()
-        tableInstance = Table()
-
-        # This method of the Game class should add a new entry to the Shot table for the current game
-        # and the given playerID (determined by looking up the playerName).
+        databaseInstance.createDB()
         shotID = databaseInstance.newShot(gameName, playerName)
 
-        # Then, the shoot method should find the object representing the cue ball (number 0).
-        # cueBall = table.cueBall(xvel, yvel)
-
-        # It should retrieve the the x and y values of the cue ball’s position, and store them in temporary
-        # variables.
-
         for ball in table:
-            if (isinstance(ball, StillBall)) and ball.obj.still_ball.number==0:
+            if isinstance(ball, StillBall) and ball.obj.still_ball.number == 0:
+                xpos = ball.obj.still_ball.pos.x
+                ypos = ball.obj.still_ball.pos.y
 
-                cueBall = ball
+                vel = Coordinate(float(xvel), float(yvel))
+                speed = phylib.phylib_length(vel)
+                accX = accY = 0.0
+                if speed > VEL_EPSILON:
+                    accX = (-vel.x / speed) * DRAG
+                    accY = (-vel.y / speed) * DRAG
 
-                xpos = cueBall.obj.rolling_ball.pos.x
-                ypos = cueBall.obj.rolling_ball.pos.y
+                ball.type = phylib.PHYLIB_ROLLING_BALL
+                ball.obj.rolling_ball.number = 0
+                ball.obj.rolling_ball.pos.x = xpos
+                ball.obj.rolling_ball.pos.y = ypos
+                ball.obj.rolling_ball.vel.x = xvel
+                ball.obj.rolling_ball.vel.y = yvel
+                ball.obj.rolling_ball.acc.x = accX
+                ball.obj.rolling_ball.acc.y = accY
 
-                # Then it should set the type attribute of the cue ball to phylib.ROLLING_BALL.
-                cueBall.type = phylib.PHYLIB_ROLLING_BALL
+        frames = []
+        pocketed = []
+        nextFrameTime = 0.0
+        onTable = ballNumbers(table)
 
-                # Then it should set all of the attributes of the cue ball. Hint: use the following syntax:
-                # cue_ball.obj.rolling_ball.pos.x = xpos;
-                # Set the position attributes to the values that you stored in the temporary variables, the
-                # velocity attributes to the parameters passed to the method, and recalculate the acceleration
-                # parameters (as in A1, and A2).
-                cueBall.obj.rolling_ball.pos.x = xpos
-                cueBall.obj.rolling_ball.pos.y = ypos
-                cueBall.obj.rolling_ball.vel.x = xvel
-                cueBall.obj.rolling_ball.vel.y = yvel
-
-                rollingBallVel = Coordinate(float(xvel), float(yvel))
-                speedA = phylib.phylib_length(rollingBallVel)
-
-                AccX = 0.0
-                AccY = 0.0
-
-                if speedA > VEL_EPSILON:
-                    AccX = (-rollingBallVel.x / speedA) * DRAG
-                    AccY = (-rollingBallVel.y / speedA) * DRAG
-
-                cueBall.obj.rolling_ball.acc.x = AccX
-                cueBall.obj.rolling_ball.acc.y = AccY
-
-                # Don’t forget to set the number of the cue ball to 0.
-                cueBall.obj.rolling_ball.number = 0
-
-                # segmentTable.object=RollingBall(0, Coordinate(
-                # float(xpos), float(ypos)), rollingBallVel, Coordinate(AccX, AccY))
-
-        # Next, you will repeatedly call the segment method from A2 until it returns None.
+        # Each segment ends at a collision or a ball stopping; frames in between are
+        # interpolated with roll() on a fixed FRAME_RATE grid.
         while True:
-            segmentStart = table.time
-
             segmentTable = table.segment()
-            table=segmentTable
             if segmentTable is None:
                 break
-            segmentEnd = segmentTable.time
+            while nextFrameTime < segmentTable.time:
+                frames.append(ballPositions(table.roll(nextFrameTime - table.time)))
+                nextFrameTime += FRAME_RATE
 
-            # You will use
-            # the method to determine the length of the segment (in seconds) – subtract the time at the
-            # beginning of the segment from the time at the end of the segment. Divide that time by the
-            # FRAME_RATE above and round it down to the nearest integer.
-            segmentLength = math.floor((segmentEnd-segmentStart)/FRAME_RATE)
-            
-            print(segmentLength)
+            remaining = ballNumbers(segmentTable)
+            pocketed += [n for n in onTable if n not in remaining]
+            onTable = remaining
+            table = segmentTable
 
-            # Start a loop that loops over those integers. Inside the loop, multiply the integer by the
-            # FRAME_RATE and pass it to the roll method to create a new Table object for the next
-            # frame.
-            newTableObject = Table()
-            for i in range(segmentLength):
-                newTableObject = table.roll(i*FRAME_RATE)
+        frames.append(ballPositions(table))
 
-                # Set the time of the returned table to the time of the beginning of the segment plus the time
-                # that you passed to the roll method.
-                newTableObject.time = segmentStart+i*FRAME_RATE
+        # Store the resting table for this shot.
+        tableID = databaseInstance.writeTable(table) + 1
+        if shotID is not None:
+            cur = databaseInstance.db.cursor()
+            cur.execute("INSERT INTO TableShot (TABLEID, SHOTID) VALUES (?, ?)",
+                        (tableID, shotID))
+            databaseInstance.db.commit()
+            cur.close()
+        databaseInstance.close()
 
-                # Save the table using writeTable to the database, and record it in the TableShot as well.
-                # Repeat the process for each segment
-                databaseInstance.writeTable(newTableObject)
-                cur = databaseInstance.db.cursor()
-                
-                cur.execute("""SELECT TABLEID FROM TTABLE WHERE TIME = ?""", (newTableObject.time,))
-                tableRecord = cur.fetchone()
-                if tableRecord is None:
-                    cur.close()
-                    return None
-                tableID = tableRecord[0]
-                # print(tableID)
-                # print(shotID)
-                cur.execute("""INSERT INTO TABLESHOT (TABLEID, SHOTID) VALUES (?, ?)""", (tableID, shotID))
-                databaseInstance.db.commit()
-                cur.close()
+        return frames, pocketed, table
+
+################################################################################
+
+
+def ballNumbers(table):
+    numbers = []
+    for obj in table:
+        if isinstance(obj, StillBall):
+            numbers.append(obj.obj.still_ball.number)
+        elif isinstance(obj, RollingBall):
+            numbers.append(obj.obj.rolling_ball.number)
+    return numbers
+
+
+def ballPositions(table):
+    positions = []
+    for obj in table:
+        if isinstance(obj, StillBall):
+            ball = obj.obj.still_ball
+        elif isinstance(obj, RollingBall):
+            ball = obj.obj.rolling_ball
+        else:
+            continue
+        positions.append([ball.number, round(ball.pos.x, 1), round(ball.pos.y, 1)])
+    return positions

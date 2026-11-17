@@ -6,7 +6,20 @@ from urllib.parse import urlparse, parse_qsl;
 
 import os
 import math
+import json
 import Physics
+import eightball
+
+games = {}
+nextGameID = 1
+
+STATIC_FILES = {
+    "/": ( "game.html", "text/html; charset=utf-8" ),
+    "/play.html": ( "play.html", "text/html; charset=utf-8" ),
+    "/theme.css": ( "theme.css", "text/css; charset=utf-8" ),
+    "/balls.js": ( "balls.js", "text/javascript; charset=utf-8" ),
+}
+MAX_NAME_LENGTH = 20
 
 class MyHandler(BaseHTTPRequestHandler):
     
@@ -37,8 +50,25 @@ class MyHandler(BaseHTTPRequestHandler):
              
              
                 
-########################################### GAME.HTML     
-        if parsed.path in [ "/game.html" ]:
+        if parsed.path in STATIC_FILES:
+            fileName, contentType = STATIC_FILES[ parsed.path ];
+            with open( fileName, "rb" ) as fp:
+                content = fp.read();
+            self.send_response( 200 );
+            self.send_header( "Content-type", contentType );
+            self.send_header( "Content-length", len( content ) );
+            self.end_headers();
+            self.wfile.write( content );
+
+        elif parsed.path in [ "/state" ]:
+            game = games.get( int( dict( parse_qsl( parsed.query ) ).get( "game", 0 ) ) );
+            if game is None:
+                self.errorMsg();
+            else:
+                self.sendJSON( game.state() );
+
+########################################### GAME.HTML
+        elif parsed.path in [ "/game.html" ]:
 
             try:
 
@@ -170,10 +200,32 @@ class MyHandler(BaseHTTPRequestHandler):
 
 
 
+    def sendJSON(self, data, status=200):
+        content = bytes( json.dumps( data ), "utf-8" );
+        self.send_response( status );
+        self.send_header( "Content-type", "application/json" );
+        self.send_header( "Content-length", len( content ) );
+        self.end_headers();
+        self.wfile.write( content );
+
     def do_POST(self):
 
         # parse the URL to get the path and form data
         parsed  = urlparse( self.path );
+
+        if parsed.path == '/shoot':
+            body = json.loads( self.rfile.read( int( self.headers['Content-Length'] ) ) );
+            game = games.get( int( body['game'] ) );
+            if game is None:
+                self.errorMsg();
+                return;
+            try:
+                frames, pocketed = game.shoot( float( body['vx'] ), float( body['vy'] ) );
+            except ValueError as error:
+                self.sendJSON( { "error": str( error ) }, 400 );
+                return;
+            self.sendJSON( { "frames": frames, "pocketed": pocketed, "state": game.state() } );
+            return;
 
         # get data send as Multipart FormData (MIME format)
         form = cgi.FieldStorage( fp=self.rfile,
@@ -414,169 +466,28 @@ class MyHandler(BaseHTTPRequestHandler):
             
             
             
-        if parsed.path in [ '/new.html' ]:   
-            gameName=form.getvalue('game_name')
-            p1Name=form.getvalue('player1_name')
-            p2Name=form.getvalue('player2_name')
-            
-            
-            content = f"""
-            <html>
-            <head>
-                <title> CIS*2750 A2 </title>
-            </head>
-            <body>
-                <h1> Still and Rolling Ball Results and Table Images\n </h1>
-                <p> 
-                gameName = {gameName}
-                </p>
-                <p>
-                p1Name = {p1Name}
-                </p>
-                <p>
-                p2Name = {p2Name}
-                </p>
-                
-            </body>
-            </html>
-            """;   
+        if parsed.path in [ '/new.html' ]:
+            global nextGameID
+            p1Name = ( form.getvalue('player1_name') or "" ).strip();
+            p2Name = ( form.getvalue('player2_name') or "" ).strip();
+            if not p1Name or not p2Name:
+                self.sendJSON( { "error": "Both players need a name." }, 400 );
+                return;
+            if len( p1Name ) > MAX_NAME_LENGTH or len( p2Name ) > MAX_NAME_LENGTH:
+                self.sendJSON( { "error": "Names can be at most %d characters." % MAX_NAME_LENGTH }, 400 );
+                return;
+            if p1Name.lower() == p2Name.lower():
+                self.sendJSON( { "error": "That name is taken, pick another." }, 409 );
+                return;
+            gameName = ( form.getvalue('game_name') or "" ).strip() or "%s vs %s" % ( p1Name, p2Name );
+            game = eightball.EightBallGame(nextGameID, gameName, p1Name, p2Name)
+            games[nextGameID] = game
+            nextGameID += 1
 
-            # 2) Delete all table-?.svg files in the server’s directory.
-            for filename in os.listdir('.'):
-                if filename.startswith("table-") and filename.endswith(".svg"):
-                    os.remove(filename)
-                    
-            # 3) Compute the acceleration on the RollingBall, the same way that you did at the end
-            # of the PHYLIB_ROLLING_BALL case of the phylib_bounce function. Do this calculation
-            # in Python.
-            
-
-            # 4) Construct a Table and add the Balls like you did in A2Test2.py according to the form
-            # data received.
-            # Call the Physics.Table constructor and store the result in a variable table
-            table = Physics.Table()
-
-
-
-
-            # List of cue balls with their number and positions
-            balls = [
-                (0, 675, 675), 
-                (1, 675, 400.0), 
-                (2, 645, 350.0),
-                (3, 705, 350.0),
-                (4, 675, 300.0), 
-                (5, 615, 300.0), 
-                (6, 735, 300.0),
-                (7, 645, 250.0),
-                (8, 705, 250.0), 
-                (9, 585, 250.0), 
-                (10, 765, 250.0),
-                (11, 675, 200.0),
-                (12, 615, 200.0), 
-                (13, 735, 200.0), 
-                (14, 555, 200.0),
-                (15, 795, 200.0)
-            ]
-
-            # Loop through the list and add each ball to the table
-            for ballNum, ballX, ballY in balls:
-                pos = Physics.Coordinate(ballX, ballY) 
-                sb = Physics.StillBall(ballNum, pos)  
-                table += sb  
-                
-            game=Physics.Game(gameName=gameName, player1Name=p1Name, player2Name=p2Name)
-            content+=table.svg()
- 
-            
-            content+="""<html>
-            <head>
-            <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js">
-            </script>
-
-            <script>
-            track = true;
-            function trackon()
-            {
-                track = true;
-            } 
-
-            function trackit( event )
-            {
-            if (track)
-            {
-            $('#valx').remove();
-            $('#valy').remove();
-            $('<div id="valx">'+event.pageX+'</div>').appendTo("#x");
-            $('<div id="valy">'+event.pageY+'</div>').appendTo("#y");
-            }
-            }
-            function cueBallMouseover(event) {
-            var cueBall = $('#cueBall0');
-            if (cueBall.length > 0) {
-                console.log('Mouse is over cue ball');
-            }
-            }
-
-            </script>
-        </head>
-        <body>
-            <svg width="500" height="500" viewBox="0 0 500 500"
-            xmlns="http://www.w3.org/2000/svg"
-            xmlns:xlink="http://www.w3.org/1999/xlink" >
-            </svg>
-            <div id="x">x=</div>
-            <div id="y">y=</div>
-
-            </body>
-            </html>
-            """
-            # game.shoot(gameName, p1Name, table, -1000, 0)
-
-
-
-            
-
-            
-            # 7) Send the string back to the browser, with a 200 response.
-            # generate the headers
-            self.send_response( 200 ); # OK
-            self.send_header( "Content-type", "text/html" );
-            self.send_header( "Content-length", len( content ) );
+            self.send_response( 303 );
+            self.send_header( "Location", "/play.html?game=%d" % game.id );
             self.end_headers();
 
-            # send it to the browser
-            self.wfile.write( bytes( content, "utf-8" ) );
-
-            
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-       
-            
         elif parsed.path in [ '/display2.html' ]:
             
             # stillBallNum = int(form.getvalue('sb_number'))

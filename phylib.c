@@ -559,6 +559,30 @@ unsigned char phylib_rolling(phylib_table *t)
 }
 
 /**
+ * Only a ball moving into an object counts as a contact. Without this, a ball still overlapping
+ * a cushion or ball right after a bounce bounces again, and it either sticks or escapes the table.
+ */
+static int phylib_approaching(phylib_object *a, phylib_object *b)
+{
+    phylib_coord v = a->obj.rolling_ball.vel;
+
+    switch (b->type)
+    {
+    case PHYLIB_HCUSHION:
+        return (b->obj.hcushion.y == 0.0) ? v.y < 0 : v.y > 0;
+    case PHYLIB_VCUSHION:
+        return (b->obj.vcushion.x == 0.0) ? v.x < 0 : v.x > 0;
+    case PHYLIB_STILL_BALL:
+        return phylib_dot_product(v, phylib_sub(b->obj.still_ball.pos, a->obj.rolling_ball.pos)) > 0;
+    case PHYLIB_ROLLING_BALL:
+        return phylib_dot_product(phylib_sub(v, b->obj.rolling_ball.vel),
+                                  phylib_sub(b->obj.rolling_ball.pos, a->obj.rolling_ball.pos)) > 0;
+    default:
+        return 1;
+    }
+}
+
+/**
  * This function should return a segment of a pool shot, as follows.
  */
 phylib_table *phylib_segment(phylib_table *table)
@@ -610,7 +634,8 @@ phylib_table *phylib_segment(phylib_table *table)
                         if (obj2 != NULL)
                         {
                             // 2) The phylib_distance between the ball and another phylib_object is less than 0.0.
-                            if (phylib_distance(copiedTable->object[i], obj2) < 0.0)
+                            if (phylib_distance(copiedTable->object[i], obj2) < 0.0 &&
+                                phylib_approaching(copiedTable->object[i], obj2))
                             {
                                 copiedTable->time=table->time+time;
                                 phylib_bounce(&(copiedTable->object[i]), &obj2);
