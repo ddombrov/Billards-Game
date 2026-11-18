@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <clipPath id="ball"><circle cx="128" cy="120" r="108"/></clipPath>
+    <!-- main diffuse light from upper-left -->
+    <radialGradient id="body" cx="86.96000000000001" cy="74.64" r="189.0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6a6a6a"/>
+      <stop offset="0.32" stop-color="#2d2d2d"/>
+      <stop offset="0.78" stop-color="#1e1e1e"/>
+      <stop offset="1" stop-color="#121212"/>
+    </radialGradient>
+    <radialGradient id="bodyCream" cx="86.96000000000001" cy="74.64" r="189.0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fffdf8"/>
+      <stop offset="0.28" stop-color="#f2ebdd"/>
+      <stop offset="0.72" stop-color="#bdb7ab"/>
+      <stop offset="1" stop-color="#837d73"/>
+    </radialGradient>
+    <!-- edge falloff -->
+    <radialGradient id="rim" cx="128" cy="120" r="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0.78" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.28"/>
+    </radialGradient>
+    <!-- table bounce light on the lower edge -->
+    <radialGradient id="bounce" cx="138.8" cy="255.0" r="102.6" gradientUnits="userSpaceOnUse">
+      <stop offset="0.55" stop-color="#fff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="18.4"/></filter>
+    <filter id="softer" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5.4"/></filter>
+    <filter id="ground" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="edgeBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.2"/></filter>
+    <!-- number disc: faint dome so it follows the ball -->
+    <radialGradient id="disc" cx="115.04" cy="103.8" r="64.8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fbf7ee"/>
+      <stop offset="0.7" stop-color="#f2ebdd"/>
+      <stop offset="1" stop-color="#e2d8c4"/>
+    </radialGradient>
+    <!-- raised number: soft drop + top-left lit bevel -->
+    <filter id="emboss" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.8" result="blur"/>
+      <feOffset in="blur" dx="1.2" dy="2" result="drop"/>
+      <feFlood flood-color="#3a2f1e" flood-opacity="0.3"/>
+      <feComposite in2="drop" operator="in" result="shadow"/>
+      <feSpecularLighting in="blur" surfaceScale="2" specularConstant="0.6" specularExponent="12" lighting-color="#ffffff" result="spec">
+        <feDistantLight azimuth="225" elevation="48"/>
+      </feSpecularLighting>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="specIn"/>
+      <feComponentTransfer in="specIn" result="specSoft"><feFuncA type="linear" slope="0.14"/></feComponentTransfer>
+      <feOffset in="blur" dx="-1" dy="-1.4" result="up"/>
+      <feComposite in="SourceAlpha" in2="up" operator="out" result="lowEdge"/>
+      <feFlood flood-color="#000" flood-opacity="0.3"/>
+      <feComposite in2="lowEdge" operator="in" result="lowShade"/>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/><feMergeNode in="lowShade"/><feMergeNode in="specSoft"/></feMerge>
+    </filter>
+  </defs>
+  <g clip-path="url(#ball)">
+  <rect x="0" y="0" width="256" height="256" fill="url(#body)"/>
+  <rect x="0" y="0" width="256" height="256" fill="url(#bounce)"/>
+  </g>
+  <circle cx="128" cy="120" r="59.1" fill="none" stroke="#000" stroke-opacity="0.22" stroke-width="2" filter="url(#edgeBlur)"/>
+  <circle cx="128" cy="120" r="58.3" fill="url(#disc)"/>
+  <g fill="#262626" filter="url(#emboss)"><path transform="translate(95.88 157.24) scale(0.09914 -0.09914)" d="M71 549Q71 603 99.0 647.5Q127 692 184.0 718.5Q241 745 324 745Q407 745 463.5 718.5Q520 692 548.0 647.5Q576 603 576 549Q576 495 550.5 455.0Q525 415 482 392Q536 366 565.0 320.5Q594 275 594 214Q594 143 558.0 91.5Q522 40 460.5 13.0Q399 -14 324 -14Q249 -14 187.5 13.0Q126 40 90.0 91.5Q54 143 54 214Q54 276 83.0 321.5Q112 367 165 392Q71 442 71 549ZM324 609Q285 609 261.5 586.0Q238 563 238 522Q238 483 262.0 460.5Q286 438 324 438Q362 438 386.0 461.0Q410 484 410 523Q410 564 386.5 586.5Q363 609 324 609ZM219 222Q219 180 247.5 153.0Q276 126 324 126Q372 126 399.5 153.0Q427 180 427 222Q427 266 398.5 292.0Q370 318 324 318Q277 318 248.0 292.5Q219 267 219 222Z"/></g>
+  <g clip-path="url(#ball)">
+  <circle cx="128" cy="120" r="108" fill="url(#rim)"/>
+  <circle cx="128" cy="120" r="108" fill="#000" opacity="0.0"/>
+  <ellipse cx="82.6" cy="68.2" rx="54.0" ry="38.9" fill="#fff" opacity="0.22" transform="rotate(-35 82.6 68.2)" filter="url(#soft)"/>
+  <ellipse cx="79.4" cy="63.8" rx="14.0" ry="8.6" fill="#fff" opacity="0.0" transform="rotate(-35 79.4 63.8)" filter="url(#softer)"/>
+  </g>
+</svg>

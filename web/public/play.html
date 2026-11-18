@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>8-Ball</title>
+<link rel="icon" href="/img/icons/eight.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/theme.css">
@@ -81,6 +82,7 @@
     filter: drop-shadow(0 18px 30px rgba(0,0,0,.55));
   }
   #board.busy { cursor: progress; }
+  #board.waiting { cursor: default; }
 
   .controls {
     display: flex;
@@ -103,6 +105,7 @@
   .winner-ball { display: flex; justify-content: center; margin-bottom: 12px; }
   .dialog.center { text-align: center; }
   .dialog.center .footer { justify-content: center; }
+  .game-code { margin: 14px 0; font-size: 44px; font-weight: 800; letter-spacing: .3em; padding-left: .3em; color: var(--primary); }
 
   @media (max-width: 700px) {
     .controls { flex-direction: column; align-items: stretch; }
@@ -115,7 +118,7 @@
 <div class="wrap">
   <div class="topbar">
     <button type="button" class="btn btn-ghost" id="leave">&larr; Leave game</button>
-    <span class="title">8-Ball</span>
+    <span class="title" id="title">8-Ball</span>
     <button type="button" class="btn btn-ghost" id="openRules">Rules</button>
   </div>
 
@@ -160,6 +163,8 @@
       <clipPath id="railClip"><rect x="-130" y="-130" width="2960" height="1610" rx="70"/></clipPath>
     </defs>
 
+    <g id="modernTable"></g>
+    <g id="classicTable">
     <rect x="-130" y="-130" width="2960" height="1610" rx="70" fill="url(#wood)"/>
     <rect x="-118" y="-118" width="2936" height="1586" rx="62" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="4"/>
     <g id="diamonds"></g>
@@ -169,6 +174,7 @@
     <line x1="675" y1="0" x2="675" y2="1350" stroke="#fff" stroke-opacity=".10" stroke-width="4"/>
     <circle cx="675" cy="675" r="7" fill="#fff" fill-opacity=".22"/>
     <circle cx="2025" cy="675" r="7" fill="#fff" fill-opacity=".22"/>
+    </g>
     <g id="pockets" clip-path="url(#railClip)"></g>
     <g id="guide"></g>
     <g id="balls"></g>
@@ -185,10 +191,23 @@
   </div>
 </div>
 
+<div class="overlay" id="waitingDialog" hidden>
+  <div class="dialog small center">
+    <h2>Share this code</h2>
+    <p class="game-code" id="waitingCode"></p>
+    <p class="description">Your friend chooses Play with friends, then Join with a code. The game starts when they join.</p>
+    <p class="error" id="waitingError" hidden></p>
+    <div class="footer">
+      <button type="button" class="btn btn-outline" id="copyCode">Copy code</button>
+      <button type="button" class="btn btn-primary" id="cancelRoom">Cancel game</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="leaveDialog" hidden>
   <div class="dialog small">
     <h2>Leave this game?</h2>
-    <p class="description">The game is saved. You can resume it from the home page.</p>
+    <p class="description" id="leaveText">The game is saved. You can resume it from the home page.</p>
     <div class="footer">
       <button type="button" class="btn btn-outline" data-close>Stay</button>
       <a class="btn btn-primary" href="/">Leave</a>
@@ -217,6 +236,7 @@
   </div>
 </div>
 
+<script src="/confetti.js"></script>
 <script src="/balls.js"></script>
 <script type="module">
 import { loadEngine, simulateShot, FRAME_RATE } from "/engine.js";
@@ -225,9 +245,15 @@ import { MAX_SPEED, TABLE_LENGTH, TABLE_WIDTH } from "/rules.js";
 // Engine coordinates are portrait (x across 0-1350, y along 0-2700). The board is drawn
 // landscape with the head of the table on the left.
 const BALL_RADIUS = 28.5, HOLE_RADIUS = 114;
-const POWER_PER_MM = 9, PLAYBACK = 2;
+const POWER_PER_MM = 9, PLAYBACK = 2, POLL_MS = 1500;
 
-const gameKey = new URLSearchParams(location.search).get("game");
+const params = new URLSearchParams(location.search);
+const gameKey = params.get("game");
+const roomCode = params.get("room");
+const online = !!roomCode;
+const mine = online ? readSeat(roomCode) : null;
+const look = getLook();
+
 loadEngine();
 const $ = (id) => document.getElementById(id);
 const board = $("board");
@@ -242,6 +268,7 @@ let state = null;
 let busy = false;
 let dragging = false;
 let skipRequested = false;
+let celebrated = false;
 
 const toScreen = (x, y) => [TABLE_LENGTH - y, x];
 
@@ -250,7 +277,8 @@ $("rulesBody").innerHTML = RULES_HTML;
 
 document.querySelectorAll(".overlay").forEach((overlay) => {
   overlay.addEventListener("click", (e) => {
-    if (overlay.id !== "winnerDialog" && (e.target === overlay || e.target.closest("[data-close]"))) overlay.hidden = true;
+    if (["winnerDialog", "waitingDialog"].includes(overlay.id)) return;
+    if (e.target === overlay || e.target.closest("[data-close]")) overlay.hidden = true;
   });
 });
 document.addEventListener("keydown", (e) => {
@@ -258,8 +286,30 @@ document.addEventListener("keydown", (e) => {
 });
 $("leave").addEventListener("click", () => ($("leaveDialog").hidden = false));
 $("openRules").addEventListener("click", () => ($("rulesDialog").hidden = false));
+if (online) {
+  $("title").textContent = "Game " + roomCode;
+  $("leaveText").textContent = `To come back, choose Play with friends, then join with code ${roomCode}.`;
+  $("rematch").hidden = true;
+}
 
-function drawTable() {
+// The modern table is the table artwork, stretched so its playing area matches the engine's 2700 x 1350 mm.
+const ART = { width: 1200, height: 680, field: { x: 88, y: 88, width: 1024, height: 504 } };
+const ART_SX = TABLE_LENGTH / ART.field.width, ART_SY = TABLE_WIDTH / ART.field.height;
+const POCKETS = [[80, 80, 30], [600, 70, 27], [1120, 80, 30], [80, 600, 30], [600, 610, 27], [1120, 600, 30]];
+
+function drawModernTable() {
+  const layer = $("modernTable");
+  el("image", { href: "/img/table.svg", x: -ART.field.x * ART_SX, y: -ART.field.y * ART_SY,
+                width: ART.width * ART_SX, height: ART.height * ART_SY, preserveAspectRatio: "none" }, layer);
+  for (const [x, y, r] of POCKETS) {
+    // hole.svg is 80 wide with a 30-unit opening; the opening is drawn close to the engine's capture radius.
+    const size = 80 * (r / 30) * (HOLE_RADIUS * .85 / 30);
+    const cx = (x - ART.field.x) * ART_SX, cy = (y - ART.field.y) * ART_SY;
+    el("image", { href: "/img/hole.svg", x: cx - size / 2, y: cy - size / 2, width: size, height: size }, layer);
+  }
+}
+
+function drawClassicTable() {
   const pockets = $("pockets");
   for (const [x, y] of [[0, 0], [0, 1350], [0, 2700], [1350, 0], [1350, 1350], [1350, 2700]]) {
     const [sx, sy] = toScreen(x, y);
@@ -281,13 +331,31 @@ function drawTable() {
   }
 }
 
+function drawTable() {
+  $("classicTable").style.display = look === "classic" ? "" : "none";
+  $("pockets").style.display = look === "classic" ? "" : "none";
+  if (look === "classic") return drawClassicTable();
+  drawModernTable();
+  // The artwork's rails are wider than the classic ones, so the view grows to show the whole table.
+  board.setAttribute("viewBox", `${-ART.field.x * ART_SX} ${-ART.field.y * ART_SY} ${ART.width * ART_SX} ${ART.height * ART_SY}`);
+}
+
+// The ball artwork is 256 units wide with the ball centred at (128, 120) and a 108-unit radius.
+function ballNode(n) {
+  if (look === "classic") return ballSVG(n, BALL_RADIUS * 2, true);
+  const k = BALL_RADIUS / 108;
+  const g = el("g", {});
+  el("image", { href: ballArt(n, false), x: -128 * k, y: -120 * k, width: 256 * k, height: 256 * k }, g);
+  return g;
+}
+
 const ballNodes = {};
 function placeBalls(balls) {
   const present = new Set();
   for (const [n, x, y] of balls) {
     present.add(n);
     if (!ballNodes[n]) {
-      ballNodes[n] = ballSVG(n, BALL_RADIUS * 2, true);
+      ballNodes[n] = ballNode(n);
       ballLayer.appendChild(ballNodes[n]);
     }
     const [sx, sy] = toScreen(x, y);
@@ -305,14 +373,16 @@ function inGroup(n, group) {
   return group === "solids" ? n >= 1 && n <= 7 : group === "stripes" ? n >= 9 && n <= 15 : false;
 }
 
+const myTurn = () => !online || (state.seated && state.turn === mine.seat);
+
 function render() {
-  document.title = `${state.players[0]} vs ${state.players[1]} · 8-Ball`;
-  messageEl.textContent = busy ? "Rolling…" : state.message;
+  document.title = `${state.players[0]} vs ${state.players[1] || "…"} · 8-Ball`;
+  messageEl.textContent = busy ? "Rolling…" : online && !state.seated ? "Waiting for a second player…" : state.message;
   const onTable = new Set(state.balls.map(b => b[0]));
   state.players.forEach((name, i) => {
     const card = $("p" + i);
     card.classList.toggle("active", state.winner === null && state.turn === i);
-    card.querySelector(".name").textContent = name;
+    card.querySelector(".name").textContent = (name || "Waiting…") + (online && mine.seat === i ? " (you)" : "");
     const group = state.groups[i];
     const left = group ? [...onTable].filter(n => inGroup(n, group)).sort((a, b) => a - b) : [];
     card.querySelector(".group").textContent = !group ? "Open table"
@@ -322,14 +392,17 @@ function render() {
     if (group && left.length === 0 && onTable.has(8)) left.push(8);
     for (const n of left) tray.appendChild(ballIcon(n, 22));
   });
-  if (state.winner !== null) {
-    forgetGame();
+  board.classList.toggle("waiting", !myTurn());
+  if (state.winner !== null && !celebrated) {
+    celebrated = true;
+    if (!online) forgetGame();
     const ball = $("winnerBall");
     ball.innerHTML = "";
     ball.appendChild(ballIcon(8, 56));
     $("winnerTitle").textContent = state.players[state.winner] + " wins!";
     $("winnerText").textContent = state.message;
     $("winnerDialog").hidden = false;
+    celebrate();
   }
 }
 
@@ -388,6 +461,23 @@ function traceShot(cx, cy, ux, uy) {
   return best;
 }
 
+function drawStick(stick, gap) {
+  const length = 1300;
+  if (look === "modern") {
+    // cue-stick.svg is 1000 x 32 with the tip at its right end.
+    const height = length * 32 / 1000;
+    el("rect", { x: -gap - length + 10, y: -height / 2 + 14, width: length, height, rx: height / 2,
+                 fill: "#000", "fill-opacity": .3 }, stick);
+    el("image", { href: "/img/cue-stick.svg", x: -gap - length, y: -height / 2, width: length, height, preserveAspectRatio: "none" }, stick);
+    return;
+  }
+  const points = `${-gap - length},16 ${-gap - length},-16 ${-gap},-7 ${-gap},7`;
+  el("polygon", { points, transform: "translate(10 14)", fill: "#000", "fill-opacity": .3 }, stick);
+  el("polygon", { points, fill: "url(#stick)" }, stick);
+  el("rect", { x: -gap - 34, y: -7.5, width: 24, height: 15, fill: "#f4f1ea" }, stick);
+  el("rect", { x: -gap - 10, y: -7, width: 10, height: 14, rx: 2, fill: "#3a78c2" }, stick);
+}
+
 function drawAim(shot) {
   guideLayer.innerHTML = "";
   cueLayer.innerHTML = "";
@@ -410,14 +500,7 @@ function drawAim(shot) {
 
   const gap = BALL_RADIUS + 10 + Math.min(shot.pull, MAX_SPEED / POWER_PER_MM) * .35;
   const angle = Math.atan2(uy, ux) * 180 / Math.PI;
-  const stick = el("g", { transform: `translate(${cx} ${cy}) rotate(${angle})` }, cueLayer);
-  const length = 1300;
-  const points = `${-gap - length},16 ${-gap - length},-16 ${-gap},-7 ${-gap},7`;
-  el("polygon", { points, transform: "translate(10 14)", fill: "#000", "fill-opacity": .3 }, stick);
-  el("polygon", { points, fill: "url(#stick)" }, stick);
-  el("rect", { x: -gap - 34, y: -7.5, width: 24, height: 15, fill: "#f4f1ea" }, stick);
-  el("rect", { x: -gap - 10, y: -7, width: 10, height: 14, rx: 2, fill: "#3a78c2" }, stick);
-
+  drawStick(el("g", { transform: `translate(${cx} ${cy}) rotate(${angle})` }, cueLayer), gap);
   powerBar.style.width = (100 * shot.speed / MAX_SPEED) + "%";
 }
 
@@ -428,7 +511,7 @@ function clearAim() {
 }
 
 board.addEventListener("pointerdown", event => {
-  if (busy || !state || state.winner !== null || !cueBall()) return;
+  if (busy || !state || state.winner !== null || !cueBall() || !myTurn()) return;
   board.setPointerCapture(event.pointerId);
   dragging = true;
   drawAim(shotFromPointer(pointerToBoard(event)));
@@ -450,6 +533,8 @@ board.addEventListener("pointerup", event => {
 
 board.addEventListener("pointercancel", () => { dragging = false; clearAim(); });
 
+const shotPath = () => online ? `/rooms/${roomCode}/shots` : `/games/${encodeURIComponent(gameKey)}/shots`;
+
 async function shoot(vx, vy) {
   busy = true;
   board.classList.add("busy");
@@ -458,16 +543,9 @@ async function shoot(vx, vy) {
   try {
     const result = await simulateShot(state.balls, vx, vy);
     // Save while the shot plays; the Worker applies the rules and returns the next turn.
-    const saved = fetch("/api/games/" + encodeURIComponent(gameKey) + "/shots", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ shot: state.shots, vx, vy, time: (result.frames.length - 1) * FRAME_RATE,
-                             pocketed: result.pocketed, balls: result.balls }),
-    }).then(async (response) => {
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || "The shot could not be saved.");
-      return body;
-    });
+    const saved = api("POST", shotPath(), { token: mine?.token, shot: state.shots, vx, vy,
+                                            time: (result.frames.length - 1) * FRAME_RATE,
+                                            pocketed: result.pocketed, balls: result.balls });
     saved.catch(() => {}); // reported after the animation below
     await animate(result.frames);
     state = await saved;
@@ -509,21 +587,83 @@ function animate(frames) {
 
 skipButton.addEventListener("click", () => { skipRequested = true; });
 
-async function load() {
-  const response = await fetch("/api/games/" + encodeURIComponent(gameKey));
-  if (!response.ok) {
-    forgetGame();
-    messageEl.innerHTML = 'This game could not be found. <a href="/" style="color: var(--primary)">Back to home</a>';
-    return;
-  }
-  state = await response.json();
-  if (state.winner === null) rememberGame(state.key);
-  placeBalls(state.balls);
-  render();
+function showMissing(text) {
+  if (!online) forgetGame();
+  messageEl.innerHTML = `${text} <a href="/" style="color: var(--primary)">Back to home</a>`;
 }
 
+function fetchState() {
+  if (!online) return api("GET", "/games/" + encodeURIComponent(gameKey));
+  return api("GET", `/rooms/${roomCode}?token=${encodeURIComponent(mine.token)}`);
+}
+
+async function load() {
+  if (online && !mine) return showMissing("You are not in this game. Join it with its code from the home page.");
+  try {
+    state = await fetchState();
+  } catch (error) {
+    return showMissing(error.reason === "forbidden" ? "Someone else took your seat in this game." : "This game could not be found.");
+  }
+  if (!online && state.winner === null) rememberGame(state.key);
+  placeBalls(state.balls);
+  render();
+  showWaiting();
+}
+
+function showWaiting() {
+  $("waitingDialog").hidden = !(online && !state.seated && mine.seat === 0);
+  $("waitingCode").textContent = roomCode;
+}
+
+// The other player's shot: replay it with the same engine from the same table, then take the saved result.
+async function replay(next) {
+  busy = true;
+  render();
+  try {
+    const result = await simulateShot(next.last.from, next.last.vx, next.last.vy);
+    await animate(result.frames);
+  } finally {
+    busy = false;
+  }
+}
+
+async function poll() {
+  if (!busy && state && state.winner === null) {
+    try {
+      const next = await fetchState();
+      if (!busy) {
+        if (next.shots === state.shots + 1 && next.last?.shot === state.shots) await replay(next);
+        state = next;
+        placeBalls(state.balls);
+        render();
+        showWaiting();
+      }
+    } catch (error) {
+      if (error.reason === "forbidden" || error.reason === "notfound") {
+        state = null;
+        return showMissing(error.reason === "forbidden" ? "Someone else took your seat in this game." : "This game no longer exists.");
+      }
+    }
+  }
+  setTimeout(poll, POLL_MS);
+}
+
+$("copyCode").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(roomCode); $("copyCode").textContent = "Copied"; } catch { /* clipboard blocked */ }
+});
+$("cancelRoom").addEventListener("click", async () => {
+  try {
+    await api("DELETE", `/rooms/${roomCode}`, { token: mine.token });
+    location.href = "/";
+  } catch (error) {
+    $("waitingError").textContent = error.message;
+    $("waitingError").hidden = false;
+  }
+});
+
 drawTable();
-load();
+await load();
+if (online && state) setTimeout(poll, POLL_MS);
 </script>
 </body>
 </html>

@@ -58,3 +58,28 @@ CREATE TABLE IF NOT EXISTS GameState (
     UPDATED TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (GAMEID) REFERENCES Game (GAMEID)
 );
+
+-- Online games, like Splendor Duel: a 5-digit code and a private token for each seat. SEAT1 is empty
+-- until someone joins. The weekly cleanup deletes rooms with no shot for seven days.
+CREATE TABLE IF NOT EXISTS Room (
+    CODE TEXT PRIMARY KEY,
+    GAMEID INTEGER NOT NULL,
+    SEAT0 TEXT NOT NULL,
+    SEAT1 TEXT,
+    ACTIVE0 INTEGER NOT NULL,
+    ACTIVE1 INTEGER NOT NULL,
+    CREATED INTEGER NOT NULL,
+    LAST_MOVE INTEGER NOT NULL,
+    FOREIGN KEY (GAMEID) REFERENCES Game (GAMEID)
+);
+CREATE INDEX IF NOT EXISTS RoomGame ON Room (GAMEID);
+
+-- Quick match. A waiting ticket has no code. Once paired, both tickets hold their room, seat and token.
+CREATE TABLE IF NOT EXISTS Queue (
+    TICKET TEXT PRIMARY KEY,
+    AT INTEGER NOT NULL,
+    CODE TEXT,
+    SEAT INTEGER,
+    TOKEN TEXT,
+    NAME TEXT
+);

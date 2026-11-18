@@ -6,13 +6,16 @@ A two-player 8-ball pool game built on a physics engine written in C (`phylib.c`
 
 ![Home screen](docs/screenshots/home.jpg)
 
-![A game in progress: scoreboard, table and shot power meter](docs/screenshots/game.jpg)
+![An online game after the break: scoreboard, groups and the modern table](docs/screenshots/game.jpg)
 
 ## Features
 
 - **Real physics:** every shot is simulated by the same C engine, compiled to WebAssembly for the browser.
 - **8-ball rules:** breaks, groups, fouls, scratches and the 8-ball finish are enforced for both players.
-- **Saved games:** every game, shot and resting table is stored, and an unfinished game can be resumed.
+- **Play anywhere:** on one device, online with a friend using a 5-digit game code, or against a stranger with quick match. Online shots are replayed on the other player's screen with the same physics.
+- **Saved games:** every game, shot and resting table is stored. An unfinished game on this device can be resumed, and an online player who loses their seat can take it back with the code.
+- **Two looks:** a modern table with ball and cue artwork, or the classic drawn table, chosen in Settings. The browser also remembers your name.
+- **Confetti** when someone wins.
 
 There are two ways to run it.
 
@@ -49,3 +52,7 @@ make PYTHONVER=python3.9          # use your Python version
 export LD_LIBRARY_PATH=`pwd`
 python3 server.py 3000            # http://localhost:3000
 ```
+
+## Credits
+
+Confetti uses [canvas-confetti](https://github.com/catdad/canvas-confetti) (ISC licence, see `CONFETTI-LICENSE.txt`).

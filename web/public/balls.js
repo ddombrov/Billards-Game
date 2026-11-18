@@ -44,12 +44,67 @@ function ballSVG(number, size, withShadow) {
   return g;
 }
 
-// A standalone <svg> holding one ball, for use in HTML layouts.
+// A standalone ball for HTML layouts: the ball artwork in the modern look, a drawn ball in the classic one.
 function ballIcon(number, size, className) {
+  if (getLook() === "modern") {
+    const img = document.createElement("img");
+    img.src = ballArt(number, true);
+    img.width = img.height = size;
+    img.alt = number ? `${number} ball` : "Cue ball";
+    if (className) img.className = className;
+    return img;
+  }
   const svg = el("svg", { width: size, height: size, viewBox: `${-size / 2} ${-size / 2} ${size} ${size}` });
   if (className) svg.setAttribute("class", className);
   svg.appendChild(ballSVG(number, size - 1, false));
   return svg;
+}
+
+const ballArt = (n, flat) => `/img/${flat ? "balls-flat" : "balls"}/ball-${n === 0 ? "cue" : n}.svg`;
+
+// The look of the table, balls and cue, chosen in Settings and kept in this browser, like Splendor Duel's.
+const LOOK_KEY = "eightball:look";
+function getLook() {
+  try { return localStorage.getItem(LOOK_KEY) === "classic" ? "classic" : "modern"; } catch { return "modern"; }
+}
+function setLook(look) {
+  try { localStorage.setItem(LOOK_KEY, look); } catch { /* storage may be blocked */ }
+}
+
+// The name this browser last played under, so it does not have to be typed again.
+const NAME_KEY = "eightball:name";
+function savedName() {
+  try { return localStorage.getItem(NAME_KEY) || ""; } catch { return ""; }
+}
+function rememberName(name) {
+  try { if (name) localStorage.setItem(NAME_KEY, name.trim()); } catch { /* storage may be blocked */ }
+}
+
+// A tab remembers its seat in each online game, so two tabs of one browser can be the two players.
+const seatKey = (code) => `eightball:seat:${code}`;
+function readSeat(code) {
+  try { return JSON.parse(sessionStorage.getItem(seatKey(code))); } catch { return null; }
+}
+function saveSeat(code, seat, token) {
+  try { sessionStorage.setItem(seatKey(code), JSON.stringify({ seat, token })); } catch { /* storage may be blocked */ }
+}
+
+// Calls the Worker. Throws an Error carrying the server's message, reason and names.
+async function api(method, path, body) {
+  const response = await fetch("/api" + path, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(data.error || "The server could not be reached."), { reason: data.reason, names: data.names });
+  return data;
+}
+
+function celebrate() {
+  if (typeof confetti === "function") {
+    confetti({ particleCount: 160, spread: 85, origin: { y: 0.6 }, colors: ["#d9b15a", "#2f8f5d", "#d23a2b", "#1f4fbf", "#ffffff"] });
+  }
 }
 
 const LAST_GAME_KEY = "eightball:lastGame";

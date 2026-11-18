@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <radialGradient id="depth" cx="50%" cy="42%" r="55%">
+      <stop offset="0" stop-color="#000"/><stop offset="0.65" stop-color="#050505"/><stop offset="0.9" stop-color="#141414"/><stop offset="1" stop-color="#1f1f1f"/>
+    </radialGradient>
+    <linearGradient id="leather" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5a3a24"/><stop offset="0.5" stop-color="#3a2414"/><stop offset="1" stop-color="#22140a"/>
+    </linearGradient>
+    <linearGradient id="lipLight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.6"/><stop offset="0.5" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#c08a5a" stop-opacity="0.45"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.5"/></filter>
+    <clipPath id="in"><circle cx="40" cy="40" r="30"/></clipPath>
+  </defs>
+  <!-- leather liner -->
+  <circle cx="40" cy="40" r="38" fill="url(#leather)"/>
+  <circle cx="40" cy="40" r="37.3" fill="none" stroke="#7a5233" stroke-opacity="0.6" stroke-width="1"/>
+  <circle cx="40" cy="40" r="34" fill="none" stroke="#c9a77a" stroke-opacity="0.35" stroke-width="0.8" stroke-dasharray="2.4 2"/>
+  <!-- the hole -->
+  <circle cx="40" cy="40" r="30" fill="url(#depth)"/>
+  <!-- inner wall: dark under the near (top) lip, faint catch-light on the far (bottom) wall -->
+  <g clip-path="url(#in)">
+    <circle cx="40" cy="40" r="30" fill="none" stroke="url(#lipLight)" stroke-width="6" filter="url(#soft)"/>
+    <path d="M17 58 Q40 74 63 58" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="3" filter="url(#soft)"/>
+  </g>
+  <circle cx="40" cy="40" r="30" fill="none" stroke="#000" stroke-width="1.2"/>
+</svg>

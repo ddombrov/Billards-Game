@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 32" width="1000" height="32">
+  <defs>
+    <linearGradient id="shaft" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff3d6"/><stop offset="0.45" stop-color="#ecd3a0"/><stop offset="1" stop-color="#b8925a"/>
+    </linearGradient>
+    <linearGradient id="butt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6b3418"/><stop offset="0.45" stop-color="#3d1a0a"/><stop offset="1" stop-color="#1e0c04"/>
+    </linearGradient>
+    <linearGradient id="wrap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3a3a"/><stop offset="0.45" stop-color="#151515"/><stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+    <linearGradient id="ferrule" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfcfcf"/>
+    </linearGradient>
+    <pattern id="wrapLines" width="4" height="32" patternUnits="userSpaceOnUse">
+      <rect x="0" width="1" height="32" fill="#ffffff" opacity="0.06"/>
+    </pattern>
+  </defs>
+  <!-- tip on the right, butt on the left -->
+  <!-- butt -->
+  <path d="M8 4 L330 7 L330 25 L8 28 Q2 16 8 4 Z" fill="url(#butt)"/>
+  <rect x="2" y="5" width="10" height="22" rx="4" fill="#111"/>
+  <!-- wrap -->
+  <path d="M60 4.5 L270 6.4 L270 25.6 L60 27.5 Z" fill="url(#wrap)"/>
+  <path d="M60 4.5 L270 6.4 L270 25.6 L60 27.5 Z" fill="url(#wrapLines)"/>
+  <rect x="56" y="4.3" width="4" height="23.4" fill="#c9a24a"/>
+  <rect x="270" y="6.3" width="4" height="19.4" fill="#c9a24a"/>
+  <!-- inlay points -->
+  <path d="M274 6.4 L330 7 L300 16 L330 25 L274 25.6 Z" fill="#2a1208"/>
+  <path d="M290 12 L308 16 L290 20 L296 16 Z" fill="#e9dcc0"/>
+  <!-- joint -->
+  <rect x="330" y="7" width="10" height="18" fill="#d9d4c7"/>
+  <rect x="330" y="7" width="10" height="18" fill="none" stroke="#8a8578" stroke-width="0.8"/>
+  <!-- shaft (tapers) -->
+  <path d="M340 7.2 L962 11 L962 21 L340 24.8 Z" fill="url(#shaft)"/>
+  <!-- ferrule -->
+  <path d="M962 11 L986 11.2 L986 20.8 L962 21 Z" fill="url(#ferrule)"/>
+  <!-- tip -->
+  <path d="M986 11.2 L994 11.4 Q999 16 994 20.6 L986 20.8 Z" fill="#3b6fd1"/>
+</svg>

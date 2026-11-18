@@ -13,3 +13,7 @@ run_worker_first = ["/api/*"]
 binding = "DB"
 database_name = "billiards"
 database_id = "0d1f1db2-407f-4d47-aec0-5149875d6324"
+
+# The weekly cleanup of online games nobody has touched for seven days: Mondays at 04:00 UTC.
+[triggers]
+crons = ["0 4 * * 1"]
