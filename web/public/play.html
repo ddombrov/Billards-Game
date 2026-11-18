@@ -244,7 +244,7 @@ import { MAX_SPEED, TABLE_LENGTH, TABLE_WIDTH } from "/rules.js";
 
 // Engine coordinates are portrait (x across 0-1350, y along 0-2700). The board is drawn
 // landscape with the head of the table on the left.
-const BALL_RADIUS = 28.5, HOLE_RADIUS = 114;
+const BALL_RADIUS = 28.5, HOLE_RADIUS = 85.5; // HOLE_RADIUS matches PHYLIB_HOLE_RADIUS in phylib.h
 const POWER_PER_MM = 9, PLAYBACK = 2, POLL_MS = 1500;
 
 const params = new URLSearchParams(location.search);
