@@ -2,8 +2,17 @@
 
 A two-player 8-ball pool game built on a physics engine written in C (`phylib.c`).
 
-- Play it: https://danieldombrovsky.com/billiards
-- Direct link to the game: https://billiards.danieldombrovsky9.workers.dev
+**Play it:** https://danieldombrovsky.com/billiards (direct link: https://billiards.danieldombrovsky9.workers.dev)
+
+![Home screen](docs/screenshots/home.jpg)
+
+![A game in progress: scoreboard, table and shot power meter](docs/screenshots/game.jpg)
+
+## Features
+
+- **Real physics:** every shot is simulated by the same C engine, compiled to WebAssembly for the browser.
+- **8-ball rules:** breaks, groups, fouls, scratches and the 8-ball finish are enforced for both players.
+- **Saved games:** every game, shot and resting table is stored, and an unfinished game can be resumed.
 
 There are two ways to run it.
 
