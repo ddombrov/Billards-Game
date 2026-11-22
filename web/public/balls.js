@@ -1,9 +1,9 @@
 // Drawing helpers shared by the home and game pages.
 const SVG_NS = "http://www.w3.org/2000/svg";
-const BALL_COLORS = ["#f6f3ea", "#f2c12e", "#1f4fbf", "#d23a2b", "#5b2a86", "#f07b1d", "#1d7a3a",
-                     "#7a1f1f", "#111111", "#f2c12e", "#1f4fbf", "#d23a2b", "#5b2a86", "#f07b1d",
-                     "#1d7a3a", "#7a1f1f"];
-let ballClipCounter = 0;
+// The classic look is the original Python version's: plain circles in these named colours, the stripes
+// drawn in a lighter shade of their solid.
+const BALL_COLORS = ["WHITE", "YELLOW", "BLUE", "RED", "PURPLE", "ORANGE", "GREEN", "BROWN", "BLACK",
+                     "LIGHTYELLOW", "LIGHTBLUE", "PINK", "MEDIUMPURPLE", "LIGHTSALMON", "LIGHTGREEN", "SANDYBROWN"];
 
 function el(name, attrs, parent) {
   const node = document.createElementNS(SVG_NS, name);
@@ -12,36 +12,8 @@ function el(name, attrs, parent) {
   return node;
 }
 
-// The shine gradient has to exist once in every SVG that draws balls.
-function addBallDefs(svg) {
-  const defs = el("defs", {}, svg);
-  const shine = el("radialGradient", { id: "shine", cx: "35%", cy: "30%", r: "75%" }, defs);
-  [[0, .75, "#fff"], [.18, .15, "#fff"], [.5, 0, "#fff"], [1, .45, "#000"]].forEach(([o, a, c]) =>
-    el("stop", { offset: o, "stop-color": c, "stop-opacity": a }, shine));
-}
-
-function ballSVG(number, size, withShadow) {
-  const g = el("g", {});
-  const r = size / 2;
-  if (withShadow) el("ellipse", { cx: r * .25, cy: r * .35, rx: r * 1.02, ry: r * .95, fill: "#000", "fill-opacity": .35 }, g);
-  if (number >= 9) {
-    const clipID = "ballclip" + ballClipCounter++;
-    el("clipPath", { id: clipID }, g).appendChild(el("circle", { r }));
-    el("circle", { r, fill: BALL_COLORS[0] }, g);
-    el("rect", { x: -r, y: -r * .55, width: 2 * r, height: r * 1.1, fill: BALL_COLORS[number],
-                 "clip-path": `url(#${clipID})` }, g);
-  } else {
-    el("circle", { r, fill: BALL_COLORS[number] }, g);
-  }
-  if (number > 0) {
-    el("circle", { r: r * .46, fill: "#fbf9f3" }, g);
-    const text = el("text", { "text-anchor": "middle", "dominant-baseline": "central",
-                              "font-size": r * .58, "font-weight": 700,
-                              "font-family": "Inter, system-ui, sans-serif", fill: "#151515" }, g);
-    text.textContent = number;
-  }
-  el("circle", { r, fill: "url(#shine)" }, g);
-  return g;
+function ballSVG(number, size) {
+  return el("circle", { r: size / 2, fill: BALL_COLORS[number] });
 }
 
 // A standalone ball for HTML layouts: the ball artwork in the modern look, a drawn ball in the classic one.
@@ -56,7 +28,7 @@ function ballIcon(number, size, className) {
   }
   const svg = el("svg", { width: size, height: size, viewBox: `${-size / 2} ${-size / 2} ${size} ${size}` });
   if (className) svg.setAttribute("class", className);
-  svg.appendChild(ballSVG(number, size - 1, false));
+  svg.appendChild(ballSVG(number, size - 1));
   return svg;
 }
 

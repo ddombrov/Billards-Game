@@ -44,6 +44,7 @@ body {
   background: transparent;
   transition: background .15s, border-color .15s, filter .15s;
 }
+.btn img { width: 22px; height: 22px; }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn-primary { background: var(--primary); color: var(--primary-foreground); }
 .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }

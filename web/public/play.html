@@ -9,43 +9,45 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/theme.css">
 <style>
-  body { display: flex; flex-direction: column; align-items: center; padding: 12px 16px 20px; overflow: hidden; }
-  .wrap { width: 100%; max-width: 1180px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  body { padding: 12px 16px; overflow: hidden; }
+  /* The players, status and power sit in a column beside the table, so the table gets the full height. */
+  .wrap { height: 100%; display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px; }
+  .side { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 
-  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .topbar .title { font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+  .topbar { display: flex; align-items: center; gap: 2px; }
+  .topbar .title { flex: 1; font-weight: 800; font-size: 17px; letter-spacing: -0.01em; margin-left: 6px; }
+  .icon-btn { width: 38px; padding: 0; }
+  .icon-btn img { width: 26px; height: 26px; }
 
   /* Scoreboard */
   .scoreboard {
     display: grid;
-    grid-template-columns: 1fr 1fr;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: calc(var(--radius) + 4px);
     overflow: hidden;
   }
   .player {
-    padding: 12px 18px;
+    padding: 12px 16px;
     display: flex;
     flex-direction: column;
     gap: 6px;
     position: relative;
     transition: background .25s;
   }
-  .player + .player { border-left: 1px solid var(--border); }
-  .player.right { align-items: flex-end; text-align: right; }
-  .player.active { background: linear-gradient(180deg, rgba(217,177,90,.12), rgba(217,177,90,0)); }
+  .player + .player { border-top: 1px solid var(--border); }
+  .player.active { background: linear-gradient(90deg, rgba(217,177,90,.14), rgba(217,177,90,0)); }
   .player.active::after {
     content: "";
     position: absolute;
-    left: 0; right: 0; bottom: 0;
-    height: 3px;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
     background: var(--primary);
   }
-  .player .top { display: flex; align-items: center; gap: 10px; }
-  .player.right .top { flex-direction: row-reverse; }
-  .player .name { font-size: 18px; font-weight: 700; }
+  .player .top { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+  .player .name { font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .badge {
+    flex: none;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .08em;
@@ -58,23 +60,23 @@
   }
   .player.active .badge { visibility: visible; }
   .player .group { color: var(--muted-foreground); font-size: 13px; }
-  .tray { display: flex; gap: 4px; min-height: 22px; }
-  .player.right .tray { flex-direction: row-reverse; }
+  .tray { display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; }
 
-  .status { height: 48px; display: flex; align-items: center; justify-content: center; }
   #message {
-    padding: 6px 16px;
-    border-radius: 99px;
+    padding: 8px 14px;
+    border-radius: var(--radius);
     background: var(--card);
     border: 1px solid var(--border);
     font-size: 14px;
     font-weight: 500;
+    text-align: center;
   }
+  #message:empty { display: none; }
 
+  .stage { min-width: 0; min-height: 0; display: flex; }
   #board {
     width: 100%;
-    flex: 1 1 0;
-    min-height: 0;
+    height: 100%;
     display: block;
     touch-action: none;
     user-select: none;
@@ -84,110 +86,90 @@
   #board.busy { cursor: progress; }
   #board.waiting { cursor: default; }
 
-  .controls {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin-top: 14px;
-    color: var(--muted-foreground);
-    font-size: 13px;
-  }
-  .meter { display: flex; align-items: center; gap: 10px; }
-  .power { width: 240px; height: 8px; background: var(--secondary); border-radius: 4px; overflow: hidden; }
+  .controls { margin-top: auto; display: grid; gap: 8px; color: var(--muted-foreground); font-size: 13px; }
+  .meter { display: flex; align-items: center; gap: 10px; min-height: 38px; }
+  .power { flex: 1; height: 8px; background: var(--secondary); border-radius: 4px; overflow: hidden; }
   .power div {
     height: 100%;
     width: 0;
     background: linear-gradient(90deg, #5fbf6b, var(--primary) 60%, #e5533d);
-    background-size: 240px 100%;
+    background-size: 100% 100%;
   }
   .rules { margin: 0 0 16px; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; }
+  .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--radius); background: var(--background); border: 1px solid var(--border); }
+  .segmented button { border: 0; border-radius: calc(var(--radius) - 3px); padding: 8px 10px; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .segmented button.on { background: var(--accent); color: var(--foreground); }
   .winner-ball { display: flex; justify-content: center; margin-bottom: 12px; }
   .dialog.center { text-align: center; }
   .dialog.center .footer { justify-content: center; }
   .game-code { margin: 14px 0; font-size: 44px; font-weight: 800; letter-spacing: .3em; padding-left: .3em; color: var(--primary); }
 
-  @media (max-width: 700px) {
-    .controls { flex-direction: column; align-items: stretch; }
-    .power { width: 100%; }
-    .player { padding: 10px 12px; }
+  /* Narrow screens: the column goes above the table, with the two players side by side. */
+  @media (max-width: 760px) {
+    body { padding: 8px 10px; }
+    .wrap { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
+    .side { gap: 8px; }
+    .scoreboard { grid-template-columns: 1fr 1fr; }
+    .player { padding: 8px 10px; }
+    .player + .player { border-top: 0; border-left: 1px solid var(--border); }
+    .player .name { font-size: 15px; }
+    .controls { margin-top: 0; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar">
-    <button type="button" class="btn btn-ghost" id="leave">&larr; Leave game</button>
-    <span class="title" id="title">8-Ball</span>
-    <button type="button" class="btn btn-ghost" id="openRules">Rules</button>
+  <div class="side">
+    <div class="topbar">
+      <button type="button" class="btn btn-ghost icon-btn" id="leave" title="Leave game" aria-label="Leave game"><img src="/img/icons/leave-game.png" alt=""></button>
+      <span class="title" id="title">8-Ball</span>
+      <button type="button" class="btn btn-ghost icon-btn" id="openRules" title="Rules" aria-label="Rules"><img src="/img/icons/rules.png" alt=""></button>
+      <button type="button" class="btn btn-ghost icon-btn" id="openSettings" title="Settings" aria-label="Settings"><img src="/img/icons/settings.png" alt=""></button>
+    </div>
+
+    <div class="scoreboard">
+      <div class="player" id="p0">
+        <div class="top"><span class="name"></span><span class="badge">To shoot</span></div>
+        <div class="group"></div>
+        <div class="tray"></div>
+      </div>
+      <div class="player" id="p1">
+        <div class="top"><span class="name"></span><span class="badge">To shoot</span></div>
+        <div class="group"></div>
+        <div class="tray"></div>
+      </div>
+    </div>
+
+    <div id="message">Loading…</div>
+
+    <div class="controls">
+      <div class="meter">
+        <span>Power</span>
+        <div class="power"><div id="powerBar"></div></div>
+        <button type="button" class="btn btn-outline" id="skip" hidden>Skip</button>
+      </div>
+    </div>
   </div>
 
-  <div class="scoreboard">
-    <div class="player" id="p0">
-      <div class="top"><span class="name"></span><span class="badge">To shoot</span></div>
-      <div class="group"></div>
-      <div class="tray"></div>
-    </div>
-    <div class="player right" id="p1">
-      <div class="top"><span class="name"></span><span class="badge">To shoot</span></div>
-      <div class="group"></div>
-      <div class="tray"></div>
-    </div>
-  </div>
-
-  <div class="status"><span id="message">Loading…</span></div>
-
-  <svg id="board" viewBox="-130 -130 2960 1610" xmlns="http://www.w3.org/2000/svg">
+  <div class="stage">
+  <svg id="board" viewBox="-25 -25 2750 1400" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#7a4726"/>
-        <stop offset=".5" stop-color="#5c331a"/>
-        <stop offset="1" stop-color="#3f2210"/>
-      </linearGradient>
-      <radialGradient id="cloth" cx="50%" cy="50%" r="65%">
-        <stop offset="0" stop-color="#2f8f5d"/>
-        <stop offset="1" stop-color="#1a5e3c"/>
-      </radialGradient>
-      <radialGradient id="pocket" r="50%">
-        <stop offset="0" stop-color="#000"/>
-        <stop offset=".46" stop-color="#000" stop-opacity=".95"/>
-        <stop offset=".5" stop-color="#000" stop-opacity=".45"/>
-        <stop offset="1" stop-color="#000" stop-opacity="0"/>
-      </radialGradient>
-      <linearGradient id="stick" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#1b1009"/>
-        <stop offset=".28" stop-color="#3b2212"/>
-        <stop offset=".3" stop-color="#c79a62"/>
-        <stop offset="1" stop-color="#f1dcb8"/>
-      </linearGradient>
-      <clipPath id="railClip"><rect x="-130" y="-130" width="2960" height="1610" rx="70"/></clipPath>
+      <clipPath id="classicClip"><rect x="-25" y="-25" width="2750" height="1400"/></clipPath>
     </defs>
-
+    <g id="world">
     <g id="modernTable"></g>
-    <g id="classicTable">
-    <rect x="-130" y="-130" width="2960" height="1610" rx="70" fill="url(#wood)"/>
-    <rect x="-118" y="-118" width="2936" height="1586" rx="62" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="4"/>
-    <g id="diamonds"></g>
-    <rect x="-34" y="-34" width="2768" height="1418" rx="10" fill="#14533a"/>
-    <rect x="0" y="0" width="2700" height="1350" fill="url(#cloth)"/>
-    <rect x="0" y="0" width="2700" height="1350" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="10"/>
-    <line x1="675" y1="0" x2="675" y2="1350" stroke="#fff" stroke-opacity=".10" stroke-width="4"/>
-    <circle cx="675" cy="675" r="7" fill="#fff" fill-opacity=".22"/>
-    <circle cx="2025" cy="675" r="7" fill="#fff" fill-opacity=".22"/>
+    <!-- The original Python version's table: a pale cloth, dark green cushions and black pockets. -->
+    <g id="classicTable" clip-path="url(#classicClip)">
+      <rect x="-25" y="-25" width="2750" height="1400" fill="darkgreen"/>
+      <rect x="0" y="0" width="2700" height="1350" fill="#C0D0C0"/>
+      <g id="pockets"></g>
     </g>
-    <g id="pockets" clip-path="url(#railClip)"></g>
     <g id="guide"></g>
     <g id="balls"></g>
     <g id="cue"></g>
+    </g>
   </svg>
 
-  <div class="controls">
-    <span>Press on the table and drag away from the cue ball to aim. Pull farther for more power, release to shoot.</span>
-    <div class="meter">
-      <span>Power</span>
-      <div class="power"><div id="powerBar"></div></div>
-      <button type="button" class="btn btn-outline" id="skip" hidden>Skip</button>
-    </div>
   </div>
 </div>
 
@@ -220,6 +202,22 @@
     <h2>Rules</h2>
     <div class="body" id="rulesBody"></div>
     <div class="footer"><button type="button" class="btn btn-primary" data-close>Got it</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="settingsDialog" hidden>
+  <div class="dialog small">
+    <h2>Settings</h2>
+    <div class="body">
+      <div>
+        <div class="field-label">Table</div>
+        <div class="segmented" id="lookTabs">
+          <button type="button" data-look="modern">Modern</button>
+          <button type="button" data-look="classic">Classic</button>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><button type="button" class="btn btn-primary" data-close>Done</button></div>
   </div>
 </div>
 
@@ -257,6 +255,7 @@ const look = getLook();
 loadEngine();
 const $ = (id) => document.getElementById(id);
 const board = $("board");
+const world = $("world");
 const ballLayer = $("balls");
 const guideLayer = $("guide");
 const cueLayer = $("cue");
@@ -272,7 +271,6 @@ let celebrated = false;
 
 const toScreen = (x, y) => [TABLE_LENGTH - y, x];
 
-addBallDefs(board);
 $("rulesBody").innerHTML = RULES_HTML;
 
 document.querySelectorAll(".overlay").forEach((overlay) => {
@@ -282,10 +280,16 @@ document.querySelectorAll(".overlay").forEach((overlay) => {
   });
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") ["leaveDialog", "rulesDialog"].forEach((id) => ($(id).hidden = true));
+  if (e.key === "Escape") ["leaveDialog", "rulesDialog", "settingsDialog"].forEach((id) => ($(id).hidden = true));
 });
 $("leave").addEventListener("click", () => ($("leaveDialog").hidden = false));
 $("openRules").addEventListener("click", () => ($("rulesDialog").hidden = false));
+$("openSettings").addEventListener("click", () => ($("settingsDialog").hidden = false));
+document.querySelectorAll("#lookTabs button").forEach((b) => {
+  b.classList.toggle("on", b.dataset.look === look);
+  // The table is drawn once, so a new look is applied by reloading; the game itself is saved.
+  b.addEventListener("click", () => { if (b.dataset.look !== look) { setLook(b.dataset.look); location.reload(); } });
+});
 if (online) {
   $("title").textContent = "Game " + roomCode;
   $("leaveText").textContent = `To come back, choose Play with friends, then join with code ${roomCode}.`;
@@ -310,39 +314,37 @@ function drawModernTable() {
 }
 
 function drawClassicTable() {
-  const pockets = $("pockets");
   for (const [x, y] of [[0, 0], [0, 1350], [0, 2700], [1350, 0], [1350, 1350], [1350, 2700]]) {
     const [sx, sy] = toScreen(x, y);
-    // The gradient fades out at the engine's real capture radius, so what you see is what drops.
-    el("circle", { cx: sx, cy: sy, r: HOLE_RADIUS, fill: "url(#pocket)" }, pockets);
-  }
-  const diamonds = $("diamonds");
-  const diamond = (cx, cy) => el("path", {
-    d: `M${cx} ${cy - 14} L${cx + 9} ${cy} L${cx} ${cy + 14} L${cx - 9} ${cy} Z`,
-    fill: "#efe3c8", "fill-opacity": .85 }, diamonds);
-  for (let i = 1; i < 8; i++) {
-    if (i === 4) continue;
-    diamond(i * TABLE_LENGTH / 8, -82);
-    diamond(i * TABLE_LENGTH / 8, TABLE_WIDTH + 82);
-  }
-  for (let i = 1; i < 4; i++) {
-    diamond(-82, i * TABLE_WIDTH / 4);
-    diamond(TABLE_LENGTH + 82, i * TABLE_WIDTH / 4);
+    el("circle", { cx: sx, cy: sy, r: HOLE_RADIUS, fill: "black" }, $("pockets"));
   }
 }
 
 function drawTable() {
   $("classicTable").style.display = look === "classic" ? "" : "none";
-  $("pockets").style.display = look === "classic" ? "" : "none";
   if (look === "classic") return drawClassicTable();
   drawModernTable();
   // The artwork's rails are wider than the classic ones, so the view grows to show the whole table.
-  board.setAttribute("viewBox", `${-ART.field.x * ART_SX} ${-ART.field.y * ART_SY} ${ART.width * ART_SX} ${ART.height * ART_SY}`);
+  view = [-ART.field.x * ART_SX, -ART.field.y * ART_SY, ART.width * ART_SX, ART.height * ART_SY];
 }
+
+// The table is drawn landscape, and stands upright on a tall screen (a phone held upright), like the original.
+// Only the view turns: aiming works in the table's own coordinates through the world group.
+let view = [-25, -25, 2750, 1400];
+let upright = false;
+function fitTable() {
+  const stage = board.parentElement;
+  upright = stage.clientHeight > stage.clientWidth;
+  const [x, y, w, h] = view;
+  board.setAttribute("viewBox", upright ? `${y} ${-(x + w)} ${h} ${w}` : view.join(" "));
+  world.setAttribute("transform", upright ? "rotate(-90)" : "");
+  for (const node of Object.values(ballNodes)) node.setAttribute("transform", ballTransform(node.dataset.at));
+}
+const ballTransform = (at) => `translate(${at})${upright ? " rotate(90)" : ""}`;
 
 // The ball artwork is 256 units wide with the ball centred at (128, 120) and a 108-unit radius.
 function ballNode(n) {
-  if (look === "classic") return ballSVG(n, BALL_RADIUS * 2, true);
+  if (look === "classic") return ballSVG(n, BALL_RADIUS * 2);
   const k = BALL_RADIUS / 108;
   const g = el("g", {});
   el("image", { href: ballArt(n, false), x: -128 * k, y: -120 * k, width: 256 * k, height: 256 * k }, g);
@@ -359,7 +361,8 @@ function placeBalls(balls) {
       ballLayer.appendChild(ballNodes[n]);
     }
     const [sx, sy] = toScreen(x, y);
-    ballNodes[n].setAttribute("transform", `translate(${sx} ${sy})`);
+    ballNodes[n].dataset.at = `${sx} ${sy}`;
+    ballNodes[n].setAttribute("transform", ballTransform(ballNodes[n].dataset.at));
   }
   for (const n of Object.keys(ballNodes)) {
     if (!present.has(Number(n))) {
@@ -375,9 +378,15 @@ function inGroup(n, group) {
 
 const myTurn = () => !online || (state.seated && state.turn === mine.seat);
 
+// The scoreboard already shows whose turn it is, so only the shot's events are written out.
+function eventMessage() {
+  const turnNote = `${state.players[state.turn]}'s turn.`;
+  return state.message.endsWith(turnNote) ? state.message.slice(0, -turnNote.length).trim() : state.message;
+}
+
 function render() {
   document.title = `${state.players[0]} vs ${state.players[1] || "…"} · 8-Ball`;
-  messageEl.textContent = busy ? "Rolling…" : online && !state.seated ? "Waiting for a second player…" : state.message;
+  messageEl.textContent = busy ? "Rolling…" : online && !state.seated ? "Waiting for a second player…" : eventMessage();
   const onTable = new Set(state.balls.map(b => b[0]));
   state.players.forEach((name, i) => {
     const card = $("p" + i);
@@ -427,7 +436,7 @@ function pointerToBoard(event) {
   const pt = board.createSVGPoint();
   pt.x = event.clientX;
   pt.y = event.clientY;
-  const p = pt.matrixTransform(board.getScreenCTM().inverse());
+  const p = pt.matrixTransform(world.getScreenCTM().inverse());
   return [p.x, p.y];
 }
 
@@ -471,11 +480,7 @@ function drawStick(stick, gap) {
     el("image", { href: "/img/cue-stick.svg", x: -gap - length, y: -height / 2, width: length, height, preserveAspectRatio: "none" }, stick);
     return;
   }
-  const points = `${-gap - length},16 ${-gap - length},-16 ${-gap},-7 ${-gap},7`;
-  el("polygon", { points, transform: "translate(10 14)", fill: "#000", "fill-opacity": .3 }, stick);
-  el("polygon", { points, fill: "url(#stick)" }, stick);
-  el("rect", { x: -gap - 34, y: -7.5, width: 24, height: 15, fill: "#f4f1ea" }, stick);
-  el("rect", { x: -gap - 10, y: -7, width: 10, height: 14, rx: 2, fill: "#3a78c2" }, stick);
+  el("line", { x1: -gap - length, y1: 0, x2: -gap, y2: 0, stroke: "saddlebrown", "stroke-width": 14, "stroke-linecap": "round" }, stick);
 }
 
 function drawAim(shot) {
@@ -662,6 +667,8 @@ $("cancelRoom").addEventListener("click", async () => {
 });
 
 drawTable();
+fitTable();
+new ResizeObserver(fitTable).observe(board.parentElement);
 await load();
 if (online && state) setTimeout(poll, POLL_MS);
 </script>
