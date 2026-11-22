@@ -77,6 +77,7 @@
   <div class="overlay" id="setupDialog" hidden>
     <form class="dialog" id="setupForm" novalidate>
       <h2>Play on this device</h2>
+      <p class="description">Enter both players' names. Player 1 breaks.</p>
       <div class="body">
         <div class="players">
           <div>
@@ -101,6 +102,7 @@
   <div class="overlay" id="resumeDialog" hidden>
     <div class="dialog small">
       <h2>Resume your game?</h2>
+      <p class="description" id="resumeText"></p>
       <div class="footer">
         <button type="button" class="btn btn-outline" id="newInstead">New game</button>
         <button type="button" class="btn btn-primary" id="resumeButton">Resume game</button>
@@ -126,7 +128,7 @@
           <input class="input code-input" id="codeInput" inputmode="numeric" maxlength="5" placeholder="00000" autocomplete="off" />
         </div>
         <div class="seats" id="seats" hidden>
-          <div class="field-label">Which player are you?</div>
+          <p class="description">This game already has two players. Which one are you?</p>
         </div>
         <p class="error" id="onlineError" hidden></p>
       </div>
@@ -266,6 +268,7 @@
     async function playOnDevice() {
       await checkResume();
       if (resumable) {
+        $("resumeText").textContent = `${resumable.players[0]} vs ${resumable.players[1]} is still in progress.`;
         open("resumeDialog");
       } else {
         openSetup();
