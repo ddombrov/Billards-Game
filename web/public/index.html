@@ -11,7 +11,7 @@
   <style>
     .home {
       min-height: 100%;
-      max-width: 640px;
+      max-width: 680px;
       margin: 0 auto;
       padding: 40px 24px;
       display: flex;
@@ -20,16 +20,17 @@
       justify-content: center;
       gap: 32px;
     }
-    .hero { text-align: center; }
-    .hero img { width: 88px; height: 88px; margin-bottom: 8px; filter: drop-shadow(0 10px 18px rgba(0,0,0,.45)); }
+    .hero { display: grid; justify-items: center; gap: 16px; text-align: center; }
+    .ball-row { display: flex; gap: 12px; justify-content: center; }
     h1 { margin: 0; font-size: 48px; font-weight: 800; letter-spacing: -0.02em; }
     .modes { width: 100%; display: grid; gap: 12px; }
+    @media (min-width: 560px) { .modes { grid-template-columns: 1fr 1fr; } }
     .mode {
       display: flex;
       align-items: center;
       gap: 16px;
       width: 100%;
-      padding: 14px 16px;
+      padding: 16px;
       border-radius: calc(var(--radius) + 4px);
       border: 1px solid var(--border);
       background: var(--card);
@@ -42,30 +43,41 @@
       transition: border-color .15s, background .15s;
     }
     .mode:hover { border-color: var(--primary); background: var(--accent); }
-    .mode img { width: 48px; height: 48px; flex: none; }
+    .mode img { width: 44px; height: 44px; flex: none; }
     .rules { margin: 0 0 16px; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; }
-    .players { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--radius); background: var(--background); border: 1px solid var(--border); }
     .segmented button { border: 0; border-radius: calc(var(--radius) - 3px); padding: 8px 10px; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
     .segmented button.on { background: var(--accent); color: var(--foreground); }
+    .playing-as { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; color: var(--muted-foreground); font-size: 14px; }
+    .playing-as b { color: var(--foreground); }
+    .link { border: 0; padding: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+    .link:hover { color: var(--foreground); }
     .code-input { text-align: center; font-size: 36px; font-weight: 800; letter-spacing: .4em; padding: 10px 0 10px .4em; }
     .seats { display: grid; gap: 8px; }
     .seats .btn { height: 48px; font-size: 17px; }
-    .searching { display: flex; align-items: center; gap: 12px; color: var(--muted-foreground); font-size: 14px; }
-    .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--input); border-top-color: var(--primary); animation: spin .8s linear infinite; }
+    .setting-note { margin: 6px 0 0; color: var(--muted-foreground); font-size: 13px; }
+    /* Quick match waits on a page of its own, like the online lobby. */
+    .screen { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px;
+              background: radial-gradient(ellipse at 50% 30%, #18202d 0%, var(--background) 65%); }
+    .screen-box { width: 100%; max-width: 440px; display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center; }
+    .screen h2 { margin: 0; font-size: 24px; font-weight: 700; }
+    .timer { display: flex; align-items: center; gap: 12px; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .spinner { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--input); border-top-color: var(--primary); animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    @media (max-width: 480px) { .players { grid-template-columns: 1fr; } h1 { font-size: 38px; } }
+    .row-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    @media (max-width: 480px) { h1 { font-size: 38px; } }
   </style>
 </head>
 <body>
   <main class="home">
     <div class="hero">
-      <img src="/img/icons/eight.png" alt="" />
+      <div class="ball-row" id="heroBalls"></div>
       <h1>8-Ball</h1>
     </div>
 
     <div class="modes">
       <button type="button" class="mode" data-mode="device"><img src="/img/icons/table.png" alt="" />Play on this device</button>
+      <button type="button" class="mode" data-mode="ai"><img src="/img/icons/ai.png" alt="" />Play the computer</button>
       <button type="button" class="mode" data-mode="online"><img src="/img/icons/cue.png" alt="" />Play with friends</button>
       <button type="button" class="mode" data-mode="quick"><img src="/img/icons/rack.png" alt="" />Quick match</button>
     </div>
@@ -73,87 +85,58 @@
     <button type="button" class="btn btn-ghost" id="openSettings"><img src="/img/icons/settings.png" alt="" />Settings</button>
   </main>
 
-  <!-- On this device -->
-  <div class="overlay" id="setupDialog" hidden>
-    <form class="dialog" id="setupForm" novalidate>
-      <h2>Play on this device</h2>
-      <p class="description">Enter both players' names. Player 1 breaks.</p>
-      <div class="body">
-        <div class="players">
-          <div>
-            <div class="field-label"><label for="player1">Player 1</label></div>
-            <input class="input" id="player1" maxlength="20" placeholder="Name" autocomplete="off" />
-          </div>
-          <div>
-            <div class="field-label"><label for="player2">Player 2</label></div>
-            <input class="input" id="player2" maxlength="20" placeholder="Name" autocomplete="off" />
-          </div>
-        </div>
-        <p class="error" id="setupError" hidden></p>
-      </div>
-      <div class="footer">
-        <button type="button" class="btn btn-outline" data-close>Cancel</button>
-        <button type="submit" class="btn btn-primary" id="startButton" disabled>Start game</button>
-      </div>
-    </form>
-  </div>
-
-  <!-- Resume -->
-  <div class="overlay" id="resumeDialog" hidden>
-    <div class="dialog small">
-      <h2>Resume your game?</h2>
-      <p class="description" id="resumeText"></p>
-      <div class="footer">
-        <button type="button" class="btn btn-outline" id="newInstead">New game</button>
-        <button type="button" class="btn btn-primary" id="resumeButton">Resume game</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- With friends: create a game or join one with its code -->
-  <div class="overlay" id="onlineDialog" hidden>
+  <!-- Every mode opens this dialog first, as in a board game box: your name, the mode's own choices, and an
+       offer to resume an unfinished game on this device or against the computer. -->
+  <div class="overlay" id="gameDialog" hidden>
     <div class="dialog">
-      <h2>Play with friends</h2>
+      <h2 id="gameTitle"></h2>
       <div class="body">
-        <div class="segmented" id="onlineTabs">
+        <div class="segmented" id="onlineTabs" hidden>
           <button type="button" class="on" data-tab="create">Create a game</button>
           <button type="button" data-tab="join">Join with a code</button>
         </div>
-        <div>
-          <div class="field-label"><label for="onlineName">Your name</label></div>
-          <input class="input" id="onlineName" maxlength="20" placeholder="Name" autocomplete="off" />
+        <p class="playing-as" id="playingAs" hidden>Playing as <b id="playingName"></b><button type="button" class="link" id="changeName">Change</button></p>
+        <input class="input" id="nameInput" maxlength="20" placeholder="Your name" autocomplete="off" hidden />
+        <div id="player2Field" hidden>
+          <div class="field-label"><label for="player2">Player 2</label></div>
+          <input class="input" id="player2" maxlength="20" placeholder="Player 2" autocomplete="off" />
+        </div>
+        <div id="levelField" hidden>
+          <div class="field-label">Difficulty</div>
+          <div class="segmented" id="levels">
+            <button type="button" data-level="easy">Easy</button>
+            <button type="button" data-level="medium" class="on">Medium</button>
+            <button type="button" data-level="hard">Hard</button>
+          </div>
         </div>
         <div id="codeField" hidden>
-          <div class="field-label"><label for="codeInput">Game code</label></div>
           <input class="input code-input" id="codeInput" inputmode="numeric" maxlength="5" placeholder="00000" autocomplete="off" />
         </div>
         <div class="seats" id="seats" hidden>
           <p class="description">This game already has two players. Which one are you?</p>
         </div>
-        <p class="error" id="onlineError" hidden></p>
+        <p class="error" id="gameError" hidden></p>
       </div>
       <div class="footer">
-        <button type="button" class="btn btn-outline" data-close>Cancel</button>
-        <button type="button" class="btn btn-primary" id="onlineGo" disabled>Create game</button>
+        <button type="button" class="btn btn-outline" id="gameCancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="gameGo"></button>
       </div>
     </div>
   </div>
 
-  <!-- Quick match -->
-  <div class="overlay" id="quickDialog" hidden>
-    <div class="dialog small">
-      <h2>Quick match</h2>
-      <div class="body">
-        <div id="quickNameField">
-          <div class="field-label"><label for="quickName">Your name</label></div>
-          <input class="input" id="quickName" maxlength="20" placeholder="Name" autocomplete="off" />
-        </div>
-        <div class="searching" id="searching" hidden><span class="spinner"></span>Looking for an opponent…</div>
-        <p class="error" id="quickError" hidden></p>
+  <!-- Quick match: waiting to be paired. After a minute it offers the computer instead. -->
+  <div class="screen" id="quickScreen" hidden>
+    <div class="screen-box">
+      <div class="ball-row" id="quickBalls"></div>
+      <div>
+        <h2 id="quickTitle">Looking for an opponent</h2>
+        <p class="description" id="quickSlow" hidden>You can keep waiting, or play the computer now.</p>
       </div>
-      <div class="footer">
+      <div class="timer"><span class="spinner"></span><span id="quickTime">0:00</span></div>
+      <p class="error" id="quickError" hidden></p>
+      <div class="row-buttons">
+        <button type="button" class="btn btn-primary" id="quickComputer" hidden><img src="/img/icons/ai.png" alt="" />Play the computer</button>
         <button type="button" class="btn btn-outline" id="quickCancel">Cancel</button>
-        <button type="button" class="btn btn-primary" id="quickGo" disabled>Find a match</button>
       </div>
     </div>
   </div>
@@ -161,7 +144,7 @@
   <!-- Settings -->
   <div class="overlay" id="settingsDialog" hidden>
     <div class="dialog small">
-      <h2>Settings</h2>
+      <h2>Game settings</h2>
       <div class="body">
         <div>
           <div class="field-label">Rules</div>
@@ -170,6 +153,7 @@
             <button type="button" data-ruleset="casual">Casual 8-Ball</button>
             <button type="button" data-ruleset="allred">All Red</button>
           </div>
+          <p class="setting-note">Used for every new game, except quick matches.</p>
         </div>
         <div>
           <div class="field-label">Table</div>
@@ -177,6 +161,7 @@
             <button type="button" data-look="modern">Modern</button>
             <button type="button" data-look="classic">Classic</button>
           </div>
+          <p class="setting-note">Classic is the look of the original Python version.</p>
         </div>
         <button type="button" class="btn btn-outline" id="openRules"><img src="/img/icons/rules.png" alt="" />Rules</button>
       </div>
@@ -202,26 +187,14 @@
     const close = (id) => { $(id).hidden = true; };
     const showError = (id, message) => { $(id).textContent = message; $(id).hidden = !message; };
     const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+    for (const id of ["heroBalls", "quickBalls"]) for (const n of [1, 9, 8, 3, 11]) $(id).appendChild(ballIcon(n, id === "heroBalls" ? 44 : 34));
 
-    let quickTicket = null, quickTimer = null;
-    function stopQuick() {
-      clearInterval(quickTimer);
-      quickTimer = null;
-      if (quickTicket) api("DELETE", "/quick/" + quickTicket).catch(() => {});
-      quickTicket = null;
-    }
     document.querySelectorAll(".overlay").forEach((overlay) => {
-      overlay.addEventListener("click", (e) => {
-        if (e.target === overlay || e.target.closest("[data-close]")) {
-          overlay.hidden = true;
-          if (overlay.id === "quickDialog") stopQuick();
-        }
-      });
+      overlay.addEventListener("click", (e) => { if (e.target === overlay || e.target.closest("[data-close]")) overlay.hidden = true; });
     });
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       document.querySelectorAll(".overlay").forEach((o) => (o.hidden = true));
-      stopQuick();
     });
 
     const goToRoom = ({ code, seat, token }) => {
@@ -229,169 +202,170 @@
       location.href = "/play.html?room=" + code;
     };
 
-    // ---------- on this device ----------
-    const p1 = $("player1"), p2 = $("player2"), start = $("startButton");
-    function validate() {
-      const filled = p1.value.trim() && p2.value.trim();
-      const clash = filled && sameName(p1.value, p2.value);
-      showError("setupError", clash ? "That name is taken, pick another." : "");
-      start.disabled = !filled || clash;
+    // ---------- the game dialog ----------
+    const TITLES = { device: "Play on this device", ai: "Play the computer", online: "Play with friends", quick: "Quick match" };
+    let mode = null, tab = "create", resumable = null, level = "medium", fullCode = null;
+    const nameInput = $("nameInput"), p2 = $("player2"), codeInput = $("codeInput"), go = $("gameGo");
+    const name = () => nameInput.value.trim();
+
+    // Your name: a reminder with a Change link once it is known, otherwise a text box.
+    function showName(editing) {
+      $("playingAs").hidden = editing;
+      nameInput.hidden = !editing;
+      $("playingName").textContent = name();
+      if (editing) nameInput.focus();
     }
-    [p1, p2].forEach((input) => input.addEventListener("input", validate));
+    $("changeName").addEventListener("click", () => showName(true));
 
-    function openSetup() {
-      if (!p1.value.trim()) p1.value = savedName();
-      if (!p2.value.trim()) p2.value = savedName2();
-      validate();
-      open("setupDialog");
-      (p1.value.trim() ? p2 : p1).focus();
+    function update() {
+      const p2Shown = mode === "device" && !resumable;
+      const clash = p2Shown && name() && p2.value.trim() && sameName(name(), p2.value);
+      showError("gameError", clash ? "The two players need different names." : "");
+      const ready = resumable || (name() && (!p2Shown || (p2.value.trim() && !clash)) && (mode !== "online" || tab === "create" || codeInput.value.length === 5));
+      go.disabled = !ready;
     }
 
-    $("setupForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      validate();
-      if (start.disabled) return;
-      start.disabled = true;
-      try {
-        rememberName(p1.value);
-        rememberName2(p2.value);
-        await startGame(p1.value.trim(), p2.value.trim());
-      } catch (err) {
-        showError("setupError", err.message);
-        start.disabled = false;
-      }
-    });
-
-    // Starting a game on this device first offers to pick the unfinished one back up.
-    let resumable = null;
-    async function checkResume() {
-      const key = lastGame();
-      if (!key) return;
+    async function findResumable(kind) {
+      const key = lastGame(kind);
+      if (!key) return null;
       try {
         const response = await fetch("/api/games/" + encodeURIComponent(key));
-        if (!response.ok) return forgetGame();
+        if (!response.ok) { forgetGame(kind); return null; }
         const state = await response.json();
-        if (state.winner === null) resumable = state;
-      } catch { /* server not reachable; nothing to resume */ }
+        return state.winner === null ? state : null;
+      } catch { return null; }
     }
 
-    async function playOnDevice() {
-      await checkResume();
-      if (resumable) {
-        $("resumeText").textContent = `${resumable.players[0]} vs ${resumable.players[1]} is still in progress.`;
-        open("resumeDialog");
-      } else {
-        openSetup();
-      }
+    async function openGame(kind) {
+      mode = kind;
+      resumable = kind === "device" || kind === "ai" ? await findResumable(kind) : null;
+      $("gameTitle").textContent = resumable ? "Resume your game?" : TITLES[kind];
+      if (!nameInput.value.trim()) nameInput.value = savedName();
+      if (!p2.value.trim()) p2.value = savedName2();
+      showName(!name());
+      $("onlineTabs").hidden = kind !== "online";
+      $("player2Field").hidden = kind !== "device" || !!resumable;
+      $("levelField").hidden = kind !== "ai" || !!resumable;
+      $("seats").hidden = true;
+      go.hidden = false;
+      $("gameCancel").textContent = resumable ? "New game" : "Cancel";
+      setTab("create");
+      open("gameDialog");
     }
-    $("resumeButton").addEventListener("click", () => { location.href = "/play.html?game=" + encodeURIComponent(resumable.key); });
-    $("newInstead").addEventListener("click", () => {
-      close("resumeDialog");
-      p1.value = resumable.players[0];
-      p2.value = resumable.players[1];
-      openSetup();
-    });
 
-    // ---------- with friends ----------
-    let tab = "create", fullCode = null;
-    const onlineName = $("onlineName"), codeInput = $("codeInput"), onlineGo = $("onlineGo");
-    function updateOnline() {
-      const ready = onlineName.value.trim() && (tab === "create" || codeInput.value.length === 5);
-      onlineGo.disabled = !ready;
-      onlineGo.textContent = tab === "create" ? "Create game" : "Join game";
-    }
     function setTab(next) {
       tab = next;
       document.querySelectorAll("#onlineTabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
-      $("codeField").hidden = tab !== "join";
+      $("codeField").hidden = mode !== "online" || tab !== "join";
       $("seats").hidden = true;
-      onlineGo.hidden = false;
-      showError("onlineError", "");
-      updateOnline();
-      (tab === "join" && onlineName.value.trim() ? codeInput : onlineName).focus();
+      go.hidden = false;
+      go.textContent = resumable ? "Resume game" : mode === "quick" ? "Find an opponent" : mode === "online" ? (tab === "create" ? "Create game" : "Join game") : "Start game";
+      showError("gameError", "");
+      update();
+      if (mode === "online" && tab === "join" && name()) codeInput.focus();
     }
     document.querySelectorAll("#onlineTabs button").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
-    onlineName.addEventListener("input", () => { showError("onlineError", ""); updateOnline(); });
-    codeInput.addEventListener("input", () => {
-      codeInput.value = codeInput.value.replace(/\D/g, "").slice(0, 5);
-      showError("onlineError", "");
-      updateOnline();
+    document.querySelectorAll("#levels button").forEach((b) => b.addEventListener("click", () => {
+      level = b.dataset.level;
+      document.querySelectorAll("#levels button").forEach((x) => x.classList.toggle("on", x === b));
+    }));
+    [nameInput, p2].forEach((input) => input.addEventListener("input", update));
+    codeInput.addEventListener("input", () => { codeInput.value = codeInput.value.replace(/\D/g, "").slice(0, 5); update(); });
+    [nameInput, p2, codeInput].forEach((input) => input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !go.disabled) go.click(); }));
+
+    // "New game" when resuming starts over with the same names; otherwise the left button just cancels.
+    $("gameCancel").addEventListener("click", () => {
+      if (!resumable) return close("gameDialog");
+      forgetGame(mode);
+      resumable = null;
+      openGame(mode);
     });
-    [onlineName, codeInput].forEach((input) => input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !onlineGo.disabled) onlineGo.click(); }));
 
     function showSeats(code, names) {
       fullCode = code;
       const box = $("seats");
       box.querySelectorAll("button").forEach((b) => b.remove());
-      names.forEach((name, seat) => {
+      names.forEach((n, seat) => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "btn btn-outline";
-        button.textContent = name;
+        button.textContent = n;
         button.addEventListener("click", async () => {
-          try { goToRoom(await api("POST", `/rooms/${fullCode}/claim`, { seat })); } catch (err) { showError("onlineError", err.message); }
+          try { goToRoom(await api("POST", `/rooms/${fullCode}/claim`, { seat })); } catch (err) { showError("gameError", err.message); }
         });
         box.appendChild(button);
       });
       box.hidden = false;
-      onlineGo.hidden = true;
+      go.hidden = true;
     }
 
-    onlineGo.addEventListener("click", async () => {
-      const name = onlineName.value.trim();
-      onlineGo.disabled = true;
+    go.addEventListener("click", async () => {
+      if (resumable) {
+        location.href = "/play.html?mode=" + mode + "&game=" + encodeURIComponent(resumable.key);
+        return;
+      }
+      go.disabled = true;
+      rememberName(name());
       try {
-        rememberName(name);
-        if (tab === "create") goToRoom(await api("POST", "/rooms", { name, ruleset: getRuleset() }));
-        else goToRoom(await api("POST", `/rooms/${codeInput.value}/join`, { name }));
+        if (mode === "device") {
+          rememberName2(p2.value);
+          await startGame(name(), p2.value.trim());
+        } else if (mode === "ai") {
+          await startGame(name(), sameName(name(), "Computer") ? "The computer" : "Computer", getRuleset(), level);
+        } else if (mode === "online") {
+          if (tab === "create") goToRoom(await api("POST", "/rooms", { name: name(), ruleset: getRuleset() }));
+          else goToRoom(await api("POST", `/rooms/${codeInput.value}/join`, { name: name() }));
+        } else {
+          close("gameDialog");
+          startQuick();
+        }
       } catch (err) {
         if (err.reason === "full" && err.names) showSeats(codeInput.value, err.names);
-        else showError("onlineError", err.message);
-        updateOnline();
+        else showError("gameError", err.message);
+        update();
       }
     });
-
-    function playOnline() {
-      if (!onlineName.value.trim()) onlineName.value = savedName();
-      open("onlineDialog");
-      setTab("create");
-    }
 
     // ---------- quick match ----------
-    const quickName = $("quickName"), quickGo = $("quickGo");
-    quickName.addEventListener("input", () => { quickGo.disabled = !quickName.value.trim(); });
-    quickName.addEventListener("keydown", (e) => { if (e.key === "Enter" && !quickGo.disabled) quickGo.click(); });
-    function playQuick() {
-      if (!quickName.value.trim()) quickName.value = savedName();
-      quickGo.disabled = !quickName.value.trim();
-      $("quickNameField").hidden = false;
-      $("searching").hidden = true;
-      quickGo.hidden = false;
-      showError("quickError", "");
-      open("quickDialog");
-      quickName.focus();
+    let quickTicket = null, quickTimer = null, quickSeconds = 0;
+    function stopQuick() {
+      clearInterval(quickTimer);
+      quickTimer = null;
+      if (quickTicket) api("DELETE", "/quick/" + quickTicket).catch(() => {});
+      quickTicket = null;
     }
-    quickGo.addEventListener("click", async () => {
-      const name = quickName.value.trim();
-      rememberName(name);
-      $("quickNameField").hidden = true;
-      $("searching").hidden = false;
-      quickGo.hidden = true;
+    function showQuickTime() {
+      const slow = quickSeconds >= 60;
+      $("quickTitle").textContent = slow ? "No one has joined yet" : "Looking for an opponent";
+      $("quickSlow").hidden = !slow;
+      $("quickComputer").hidden = !slow;
+      $("quickTime").textContent = `${Math.floor(quickSeconds / 60)}:${String(quickSeconds % 60).padStart(2, "0")}`;
+    }
+    async function startQuick() {
+      quickSeconds = 0;
+      showQuickTime();
+      showError("quickError", "");
+      open("quickScreen");
       try {
-        quickTicket = (await api("POST", "/quick", { name })).ticket;
-        quickTimer = setInterval(async () => {
-          try {
-            const result = await api("GET", "/quick/" + quickTicket);
-            if (result.code) { clearInterval(quickTimer); quickTicket = null; goToRoom(result); }
-            else if (result.gone) { stopQuick(); playQuick(); showError("quickError", "No one turned up. Try again."); }
-          } catch { /* try again on the next tick */ }
-        }, 1500);
+        quickTicket = (await api("POST", "/quick", { name: name() })).ticket;
       } catch (err) {
-        playQuick();
-        showError("quickError", err.message);
+        return showError("quickError", err.message);
       }
-    });
-    $("quickCancel").addEventListener("click", () => { stopQuick(); close("quickDialog"); });
+      let ticks = 0;
+      quickTimer = setInterval(async () => {
+        quickSeconds++;
+        showQuickTime();
+        // The server forgets a ticket nobody has checked for a while, so it is checked every couple of seconds.
+        if (++ticks % 2) return;
+        try {
+          const result = await api("GET", "/quick/" + quickTicket);
+          if (result.code) { clearInterval(quickTimer); quickTicket = null; goToRoom(result); }
+          else if (result.gone) { stopQuick(); startQuick(); }
+        } catch { /* try again on the next tick */ }
+      }, 1000);
+    }
+    $("quickCancel").addEventListener("click", () => { stopQuick(); close("quickScreen"); });
+    $("quickComputer").addEventListener("click", () => { stopQuick(); close("quickScreen"); openGame("ai"); });
 
     // ---------- settings ----------
     function showLook() {
@@ -405,8 +379,7 @@
     $("openSettings").addEventListener("click", () => { showLook(); showRules(); open("settingsDialog"); });
     $("openRules").addEventListener("click", () => { close("settingsDialog"); open("rulesDialog"); });
 
-    const MODES = { device: playOnDevice, online: playOnline, quick: playQuick };
-    document.querySelectorAll(".mode").forEach((b) => b.addEventListener("click", () => MODES[b.dataset.mode]()));
+    document.querySelectorAll(".mode").forEach((b) => b.addEventListener("click", () => openGame(b.dataset.mode)));
   </script>
 </body>
 </html>

@@ -35,7 +35,7 @@ export function checkNames(player1, player2) {
 export const inGroup = (n, group) =>
   (group === "solids" && n >= 1 && n <= 7) || (group === "stripes" && n >= 9 && n <= 15);
 
-export function newGame(player1, player2, ruleset = "eightball") {
+export function newGame(player1, player2, ruleset = "eightball", ai = null) {
   const balls = [[0, ...HEAD_SPOT]];
   RACK.forEach((numbers, row) => numbers.forEach((n, col) =>
     balls.push([n, FOOT_SPOT[0] + (col - row / 2) * RACK_COLUMN, FOOT_SPOT[1] - row * RACK_ROW])));
@@ -45,9 +45,15 @@ export function newGame(player1, player2, ruleset = "eightball") {
     turn: 0,
     winner: null,
     shots: 0,
-    message: `${player1} breaks.`,
+    message: "Who breaks?",
     balls,
     ruleset: cleanRuleset(ruleset),
+    // Nobody shoots until the players choose who breaks (or flip a coin for it).
+    awaitingFirst: true,
+    // Every shot's outcome, for the game log.
+    log: [],
+    // The computer's level when player 2 is the computer.
+    ai: ["easy", "medium", "hard"].includes(ai) ? ai : null,
     // All Red only: the balls each player has pocketed.
     potted: [[], []],
   };
@@ -57,6 +63,21 @@ function respotCueBall(balls) {
   let [x, y] = HEAD_SPOT;
   while (balls.some(([, bx, by]) => Math.hypot(x - bx, y - by) < BALL_DIAMETER + 1)) y += BALL_DIAMETER;
   return [0, x, y];
+}
+
+const logged = (state, next) => ({ ...next, log: [...(state.log ?? []), next.message] });
+
+// The players chose who breaks: that player shoots first.
+export function chooseFirst(state, player) {
+  if (!state.awaitingFirst || (player !== 0 && player !== 1)) return state;
+  return logged(state, { ...state, awaitingFirst: false, turn: player, message: `${state.players[player]} breaks.` });
+}
+
+// A player gives up: the other wins.
+export function resign(state, player) {
+  if (state.winner !== null || (player !== 0 && player !== 1)) return state;
+  const other = 1 - player;
+  return logged(state, { ...state, awaitingFirst: false, winner: other, resigned: player, message: `${state.players[player]} resigned. ${state.players[other]} wins!` });
 }
 
 // Puts an object ball back on the foot spot, or just behind it toward the far cushion when that is taken.
@@ -101,6 +122,10 @@ function applyAllRed(state, pocketed, finalBalls) {
 // Applies a finished shot: pocketed lists ball numbers in the order they dropped and balls the
 // final positions. Returns the next state; the input state is not changed.
 export function applyShot(state, pocketed, finalBalls) {
+  return logged(state, scoreShot(state, pocketed, finalBalls));
+}
+
+function scoreShot(state, pocketed, finalBalls) {
   if (state.ruleset === "allred") return applyAllRed(state, pocketed, finalBalls);
   const next = { ...state, groups: [...state.groups], shots: state.shots + 1 };
   const shooter = state.turn, other = 1 - shooter;

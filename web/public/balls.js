@@ -98,18 +98,18 @@ function celebrate() {
   }
 }
 
-const LAST_GAME_KEY = "eightball:lastGame";
-function rememberGame(id) {
-  try { localStorage.setItem(LAST_GAME_KEY, String(id)); } catch { /* storage may be blocked */ }
+// The unfinished game on this device and against the computer, one of each, for the home page to offer back.
+const lastGameKey = (mode) => (mode === "ai" ? "eightball:lastGame:ai" : "eightball:lastGame");
+function rememberGame(id, mode = "device") {
+  try { localStorage.setItem(lastGameKey(mode), String(id)); } catch { /* storage may be blocked */ }
 }
-function lastGame() {
-  try { return localStorage.getItem(LAST_GAME_KEY); } catch { return null; }
+function lastGame(mode = "device") {
+  try { return localStorage.getItem(lastGameKey(mode)); } catch { return null; }
 }
-function forgetGame() {
-  try { localStorage.removeItem(LAST_GAME_KEY); } catch { /* storage may be blocked */ }
+function forgetGame(mode = "device") {
+  try { localStorage.removeItem(lastGameKey(mode)); } catch { /* storage may be blocked */ }
 }
 
-// Creates a game in the database and opens it. Throws with the server's message, e.g. for a taken name.
 // The rules for new games, chosen in Settings before a game starts and kept in this browser.
 const RULESET_NAMES = { eightball: "8-Ball", casual: "Casual 8-Ball", allred: "All Red" };
 const RULESET_KEY = "eightball:ruleset";
@@ -129,11 +129,12 @@ function rememberName2(name) {
   try { if (name) localStorage.setItem(NAME2_KEY, name.trim()); } catch { /* storage may be blocked */ }
 }
 
-async function startGame(player1, player2, ruleset = getRuleset()) {
+// Creates a game in the database and opens it. Throws with the server's message, e.g. for a taken name.
+async function startGame(player1, player2, ruleset = getRuleset(), ai = null) {
   const response = await fetch("/api/games", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ player1, player2, ruleset }),
+    body: JSON.stringify({ player1, player2, ruleset, ai }),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Could not start the game.");

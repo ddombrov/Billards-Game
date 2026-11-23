@@ -61,4 +61,27 @@ async function simulateShot(balls, vx, vy) {
   return { frames, pocketed, balls: finalBalls };
 }
 
-export { loadEngine, simulateShot, FRAME_RATE };
+// The same shot without the animation frames: only what dropped and where everything stopped. The computer
+// player tries many shots this way before taking one.
+async function shotOutcome(balls, vx, vy) {
+  const engine = await loadEngine();
+  let table = engine.table_new();
+  for (const [n, x, y] of balls) engine.table_add_ball(table, n, x, y);
+  engine.table_shoot(table, vx, vy);
+  const pocketed = [];
+  let onTable = balls.map((b) => b[0]);
+  for (;;) {
+    const segment = engine.table_segment(table);
+    if (!segment) break;
+    const remaining = readBalls(engine, segment, 0).map((b) => b[0]);
+    pocketed.push(...onTable.filter((n) => !remaining.includes(n)));
+    onTable = remaining;
+    engine.table_free(table);
+    table = segment;
+  }
+  const finalBalls = readBalls(engine, table, 0);
+  engine.table_free(table);
+  return { pocketed, balls: finalBalls };
+}
+
+export { loadEngine, simulateShot, shotOutcome, FRAME_RATE };

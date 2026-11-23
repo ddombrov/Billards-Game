@@ -23,6 +23,30 @@
   .code-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px;
               border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; }
   .code-row strong { letter-spacing: .2em; }
+  /* The online lobby: a page of its own while the host waits, with the code in five boxes. */
+  .lobby { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px;
+           background: radial-gradient(ellipse at 50% 30%, #18202d 0%, var(--background) 65%); }
+  .lobby-box { width: 100%; max-width: 440px; display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center; }
+  .lobby h1 { margin: 0; font-size: 24px; font-weight: 700; }
+  .ball-row { display: flex; gap: 10px; justify-content: center; }
+  .code-boxes { display: flex; gap: 8px; }
+  .code-boxes span { width: 56px; height: 80px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);
+                     border-radius: var(--radius); background: var(--card); font-size: 44px; font-weight: 800; }
+  .waiting { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); font-size: 14px; margin: 0; }
+  .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--input); border-top-color: var(--primary); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* Who breaks: two choices and a coin to flip. */
+  .first-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .first-choices .btn { height: auto; padding: 16px 10px; font-size: 15px; }
+  .first-choices .coin-btn { grid-column: 1 / -1; background: var(--secondary); }
+  .coinbox { perspective: 700px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0; }
+  .coin { position: relative; width: 120px; height: 120px; transform-style: preserve-3d; animation: coinflip 1.7s cubic-bezier(0.2, 0.6, 0.3, 1) forwards; }
+  .coinface { position: absolute; inset: 0; backface-visibility: hidden; }
+  .coinface img { width: 100%; height: 100%; object-fit: contain; }
+  .coinface.back { transform: rotateY(180deg); }
+  @keyframes coinflip { from { transform: rotateY(0deg); } to { transform: rotateY(var(--end)); } }
+  .coin-text { min-height: 24px; margin: 0; font-size: 17px; font-weight: 600; }
+  .log { margin: 0; padding-left: 22px; display: grid; gap: 6px; font-size: 14px; max-height: 55vh; overflow-y: auto; }
   .note { margin: 8px 0 0; color: var(--muted-foreground); font-size: 13px; }
   .segmented button:disabled { opacity: .5; cursor: default; }
 
@@ -177,27 +201,58 @@
   </div>
 </div>
 
-<div class="overlay" id="waitingDialog" hidden>
-  <div class="dialog small center">
-    <h2>Share this code</h2>
-    <p class="game-code" id="waitingCode"></p>
-    <p class="description">Send this code to your friend. They choose Play with friends, then Join with a code.</p>
+<div class="lobby" id="waitingDialog" hidden>
+  <div class="lobby-box">
+    <div class="ball-row" id="lobbyBalls"></div>
+    <div>
+      <h1>Your game is ready</h1>
+      <p class="description">Send this code to your friend. They choose Join with a code.</p>
+    </div>
+    <div class="code-boxes" id="waitingCode"></div>
+    <button type="button" class="btn btn-outline" id="copyCode">Copy code</button>
+    <p class="waiting"><span class="spinner"></span>Waiting for your opponent to join</p>
     <p class="error" id="waitingError" hidden></p>
-    <div class="footer">
-      <button type="button" class="btn btn-outline" id="copyCode">Copy code</button>
-      <button type="button" class="btn btn-primary" id="cancelRoom">Cancel game</button>
+    <button type="button" class="btn btn-ghost" id="cancelRoom">Cancel game</button>
+  </div>
+</div>
+
+<div class="overlay" id="firstDialog" hidden>
+  <div class="dialog small">
+    <h2>Who breaks?</h2>
+    <div class="body">
+      <div class="first-choices" id="firstChoices">
+        <button type="button" class="btn btn-outline" data-first="0"></button>
+        <button type="button" class="btn btn-outline" data-first="1"></button>
+        <button type="button" class="btn coin-btn" id="flipCoin"><img src="/img/icons/coin-gold-1.png" alt="">Flip a coin</button>
+      </div>
+      <p class="waiting" id="firstWaiting" hidden><span class="spinner"></span><span></span></p>
+      <div class="coinbox" id="coinBox" hidden>
+        <div class="coin" id="coin">
+          <div class="coinface"><img src="/img/icons/coin-gold-1.png" alt=""></div>
+          <div class="coinface back"><img src="/img/icons/coin-gold-2.png" alt=""></div>
+        </div>
+        <p class="coin-text" id="coinText"></p>
+      </div>
     </div>
   </div>
 </div>
 
-<div class="overlay" id="leaveDialog" hidden>
+<div class="overlay" id="askDialog" hidden>
   <div class="dialog small">
-    <h2>Leave this game?</h2>
-    <p class="description" id="leaveText">The game is saved. You can resume it from the home page.</p>
+    <h2 id="askTitle"></h2>
+    <p class="error" id="askError" hidden></p>
     <div class="footer">
-      <button type="button" class="btn btn-outline" data-close>Stay</button>
-      <a class="btn btn-primary" href="/">Leave</a>
+      <button type="button" class="btn btn-outline" data-close>Cancel</button>
+      <button type="button" class="btn btn-primary" id="askYes"></button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="logDialog" hidden>
+  <div class="dialog">
+    <h2>Game log</h2>
+    <ol class="log" id="logList"></ol>
+    <div class="footer"><button type="button" class="btn btn-primary" data-close>Done</button></div>
   </div>
 </div>
 
@@ -232,7 +287,10 @@
         </div>
       </div>
       <div class="menu">
+        <button type="button" class="btn btn-outline" id="openLog"><img src="/img/icons/log.png" alt="">Log</button>
         <button type="button" class="btn btn-outline" id="openRules"><img src="/img/icons/rules.png" alt="">Rules</button>
+        <button type="button" class="btn btn-outline" id="startOver"><img src="/img/icons/start-over.png" alt="">Start over</button>
+        <button type="button" class="btn btn-outline" id="resign"><img src="/img/icons/resign.png" alt="">Resign</button>
         <button type="button" class="btn btn-outline" id="leave"><img src="/img/icons/leave-game.png" alt="">Leave game</button>
       </div>
     </div>
@@ -253,9 +311,8 @@
 </div>
 
 <div class="overlay" id="winnerDialog" hidden>
-  <div class="dialog small center">
-    <div class="winner-ball" id="winnerBall"></div>
-    <h2 id="winnerTitle"></h2>
+  <div class="dialog small">
+    <h2>Game over</h2>
     <p class="description" id="winnerText"></p>
     <p class="error" id="rematchError" hidden></p>
     <div class="footer">
@@ -269,6 +326,7 @@
 <script src="/balls.js"></script>
 <script type="module">
 import { loadEngine, simulateShot, FRAME_RATE } from "/engine.js";
+import { chooseShot } from "/ai.js";
 import { MAX_SPEED, TABLE_LENGTH, TABLE_WIDTH } from "/rules.js";
 
 // Engine coordinates are portrait (x across 0-1350, y along 0-2700). The board is drawn
@@ -306,14 +364,39 @@ $("rulesBody").innerHTML = RULES_HTML;
 
 document.querySelectorAll(".overlay").forEach((overlay) => {
   overlay.addEventListener("click", (e) => {
-    if (["winnerDialog", "waitingDialog"].includes(overlay.id)) return;
+    if (["winnerDialog", "firstDialog"].includes(overlay.id)) return;
     if (e.target === overlay || e.target.closest("[data-close]")) overlay.hidden = true;
   });
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") ["leaveDialog", "rulesDialog", "settingsDialog", "newGameDialog"].forEach((id) => ($(id).hidden = true));
+  if (e.key === "Escape") ["askDialog", "rulesDialog", "settingsDialog", "newGameDialog", "logDialog"].forEach((id) => ($(id).hidden = true));
 });
-$("leave").addEventListener("click", () => { $("settingsDialog").hidden = true; $("leaveDialog").hidden = false; });
+// A question with a title and two buttons, like "Resign?", before doing something that can't be undone.
+let askYes = null;
+function ask(title, yes, run) {
+  $("settingsDialog").hidden = true;
+  $("askTitle").textContent = title;
+  $("askYes").textContent = yes;
+  $("askError").hidden = true;
+  askYes = run;
+  $("askDialog").hidden = false;
+}
+$("askYes").addEventListener("click", async () => {
+  try { await askYes(); $("askDialog").hidden = true; } catch (error) { $("askError").textContent = error.message; $("askError").hidden = false; }
+});
+$("leave").addEventListener("click", () => ask("Leave this game?", "Leave", () => { location.href = "/"; }));
+$("startOver").addEventListener("click", () => ask("Start over?", "Start over", () => startGame(state.players[0], state.players[1], state.ruleset, state.ai)));
+$("resign").addEventListener("click", () => ask("Resign?", "Resign", async () => {
+  state = await gameAction("resign", { player: state.ai ? 0 : state.turn });
+  render();
+}));
+$("openLog").addEventListener("click", () => {
+  $("settingsDialog").hidden = true;
+  const list = $("logList");
+  list.innerHTML = "";
+  for (const line of state?.log ?? []) list.appendChild(Object.assign(document.createElement("li"), { textContent: line }));
+  $("logDialog").hidden = false;
+});
 $("openRules").addEventListener("click", () => { $("settingsDialog").hidden = true; $("rulesDialog").hidden = false; });
 $("openSettings").addEventListener("click", () => ($("settingsDialog").hidden = false));
 document.querySelectorAll("#lookTabs button").forEach((b) => {
@@ -340,7 +423,7 @@ $("newGameGo").addEventListener("click", async () => {
   }
 });
 if (online) {
-  $("leaveText").textContent = `To come back, choose Play with friends, then join with code ${roomCode}.`;
+  $("startOver").hidden = true;
   $("codeRow").hidden = false;
   $("codeText").textContent = roomCode;
   $("copyRoomCode").addEventListener("click", async () => {
@@ -449,7 +532,10 @@ function inGroup(n, group) {
   return group === "solids" ? n >= 1 && n <= 7 : group === "stripes" ? n >= 9 && n <= 15 : false;
 }
 
-const myTurn = () => !online || (state.seated && state.turn === mine.seat);
+const myTurn = () => !state.awaitingFirst &&
+  (online ? state.seated && state.turn === mine.seat : !state.ai || state.turn === 0);
+const mode = () => (state?.ai ? "ai" : "device");
+let thinking = false;
 
 // The scoreboard already shows whose turn it is, so only the shot's events are written out.
 function eventMessage() {
@@ -464,11 +550,11 @@ function render() {
   });
   $("rulesNote").hidden = !online;
   document.title = `${state.players[0]} vs ${state.players[1] || "…"} · 8-Ball`;
-  messageEl.textContent = busy ? "Rolling…" : online && !state.seated ? "Waiting for a second player…" : eventMessage();
+  messageEl.textContent = thinking ? "The computer is thinking…" : busy ? "Rolling…" : online && !state.seated ? "Waiting for a second player…" : eventMessage();
   const onTable = new Set(state.balls.map(b => b[0]));
   state.players.forEach((name, i) => {
     const card = $("p" + i);
-    card.classList.toggle("active", state.winner === null && state.turn === i);
+    card.classList.toggle("active", state.winner === null && !state.awaitingFirst && state.turn === i);
     card.querySelector(".name").textContent = (name || "Waiting…") + (online && mine.seat === i ? " (you)" : "");
     const tray = card.querySelector(".tray");
     tray.innerHTML = "";
@@ -486,13 +572,11 @@ function render() {
     for (const n of left) tray.appendChild(ballIcon(n, 22));
   });
   board.classList.toggle("waiting", !myTurn());
+  showFirst();
   if (state.winner !== null && !celebrated) {
     celebrated = true;
-    if (!online) forgetGame();
-    const ball = $("winnerBall");
-    ball.innerHTML = "";
-    ball.appendChild(ballIcon(8, 56, undefined, allRed()));
-    $("winnerTitle").textContent = state.players[state.winner] + " wins!";
+    $("firstDialog").hidden = true;
+    if (!online) forgetGame(mode());
     $("winnerText").textContent = state.message;
     $("winnerDialog").hidden = false;
     celebrate();
@@ -503,7 +587,7 @@ $("rematch").addEventListener("click", async () => {
   const button = $("rematch");
   button.disabled = true;
   try {
-    await startGame(state.players[0], state.players[1], state.ruleset);
+    await startGame(state.players[0], state.players[1], state.ruleset, state.ai);
   } catch (error) {
     $("rematchError").textContent = error.message;
     $("rematchError").hidden = false;
@@ -651,6 +735,55 @@ async function shoot(vx, vy) {
     }
     if (failure) messageEl.textContent = "Shot failed: " + failure.message;
   }
+  computerTurn();
+}
+
+// ---------- who breaks, the computer, and other actions ----------
+
+// Choosing who breaks and resigning are saved by the Worker, like shots.
+function gameAction(action, body) {
+  return online ? api("POST", `/rooms/${roomCode}/${action}`, { token: mine.token, ...body })
+                : api("POST", `/games/${encodeURIComponent(gameKey)}/${action}`, body);
+}
+
+function showFirst() {
+  const asking = !!state.awaitingFirst && state.winner === null && (!online || state.seated);
+  $("firstDialog").hidden = !asking;
+  if (!asking || coinFlipping) return;
+  const chooses = !online || mine.seat === 0;
+  $("firstChoices").hidden = !chooses;
+  $("firstWaiting").hidden = chooses;
+  $("firstWaiting").lastElementChild.textContent = `Waiting for ${state.players[0]} to choose.`;
+  document.querySelectorAll("[data-first]").forEach((b) => (b.textContent = `${state.players[b.dataset.first]} breaks`));
+}
+
+async function chooseFirst(player) {
+  state = await gameAction("first", { player });
+  render();
+  computerTurn();
+}
+document.querySelectorAll("[data-first]").forEach((b) => b.addEventListener("click", () => chooseFirst(Number(b.dataset.first)).catch((e) => (messageEl.textContent = e.message))));
+
+let coinFlipping = false;
+$("flipCoin").addEventListener("click", () => {
+  const winner = crypto.getRandomValues(new Uint8Array(1))[0] & 1;
+  coinFlipping = true;
+  $("firstChoices").hidden = true;
+  $("coinBox").hidden = false;
+  $("coin").style.setProperty("--end", winner === 0 ? "1800deg" : "1980deg");
+  setTimeout(() => ($("coinText").textContent = `${state.players[winner]} breaks!`), 1750);
+  setTimeout(() => { coinFlipping = false; chooseFirst(winner).catch((e) => (messageEl.textContent = e.message)); }, 2900);
+});
+
+// In a game against the computer, it plays player 2's shots.
+async function computerTurn() {
+  if (!state?.ai || state.turn !== 1 || state.winner !== null || state.awaitingFirst || busy || thinking) return;
+  thinking = true;
+  render();
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  const { vx, vy } = await chooseShot(state, state.ai);
+  thinking = false;
+  await shoot(vx, vy);
 }
 
 function animate(frames) {
@@ -677,7 +810,7 @@ function animate(frames) {
 skipButton.addEventListener("click", () => { skipRequested = true; });
 
 function showMissing(text) {
-  if (!online) forgetGame();
+  if (!online) forgetGame(new URLSearchParams(location.search).get("mode") === "ai" ? "ai" : "device");
   messageEl.innerHTML = `${text} <a href="/" style="color: var(--primary)">Back to home</a>`;
 }
 
@@ -693,15 +826,16 @@ async function load() {
   } catch (error) {
     return showMissing(error.reason === "forbidden" ? "Someone else took your seat in this game." : "This game could not be found.");
   }
-  if (!online && state.winner === null) rememberGame(state.key);
+  if (!online && state.winner === null) rememberGame(state.key, mode());
   placeBalls(state.balls);
   render();
   showWaiting();
+  computerTurn();
 }
 
 function showWaiting() {
   $("waitingDialog").hidden = !(online && !state.seated && mine.seat === 0);
-  $("waitingCode").textContent = roomCode;
+  if (online) $("waitingCode").innerHTML = [...roomCode].map((d) => `<span>${d}</span>`).join("");
 }
 
 // The other player's shot: replay it with the same engine from the same table, then take the saved result.
@@ -750,6 +884,7 @@ $("cancelRoom").addEventListener("click", async () => {
   }
 });
 
+for (const n of [1, 9, 8, 3, 11]) $("lobbyBalls").appendChild(ballIcon(n, 34));
 drawTable();
 fitTable();
 new ResizeObserver(fitTable).observe(board.parentElement);

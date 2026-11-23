@@ -3,18 +3,21 @@
 //     POST /api/games            { player1, player2 }                  -> new game
 //     GET  /api/games/:key                                              -> game
 //     POST /api/games/:key/shots { shot, vx, vy, time, pocketed, balls } -> game after the shot
+//     POST /api/games/:key/first { player }  -> that player breaks;  POST /api/games/:key/resign { player }
 //   Online games: a 5-digit code, and a private token per seat.
 //     POST   /api/rooms                 { name }          -> { code, seat: 0, token }
 //     POST   /api/rooms/:code/join      { name }          -> { code, seat: 1, token }, or a "full" error with both names
 //     POST   /api/rooms/:code/claim     { seat }          -> a new token for that seat, for a player who lost theirs
 //     GET    /api/rooms/:code?token=                      -> the game, with "seated" and this tab's seat
 //     POST   /api/rooms/:code/shots     { token, ...shot } -> game after the shot, only on the shooter's turn
+//     POST   /api/rooms/:code/first     { token, player } -> the host chooses who breaks
+//     POST   /api/rooms/:code/resign    { token }         -> that seat resigns
 //     DELETE /api/rooms/:code           { token }         -> the host cancels a game nobody has joined
 //     POST   /api/quick { name }, GET /api/quick/:ticket, DELETE /api/quick/:ticket -> quick match
 // Physics runs in the browser (phylib.c as WebAssembly); the Worker applies the rules and saves the
 // shot and the resting table in the same tables Physics.py uses. Each saved game also keeps the last
 // shot's cue speed and starting table, so the other player's browser can replay it with the same engine.
-import { applyShot, checkNames, newGame, sameName, MAX_NAME_LENGTH, MAX_SPEED, TABLE_LENGTH, TABLE_WIDTH } from "../public/rules.js";
+import { applyShot, checkNames, chooseFirst, newGame, resign, sameName, MAX_NAME_LENGTH, MAX_SPEED, TABLE_LENGTH, TABLE_WIDTH } from "../public/rules.js";
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 const QUEUE_WAIT = 70 * 1000; // a waiting quick match ticket older than this is dropped
@@ -54,7 +57,7 @@ async function createGame(db, body) {
   const error = checkNames(body.player1, body.player2);
   if (error) return fail(error.includes("taken") ? 409 : 400, error);
   const player1 = body.player1.trim(), player2 = body.player2.trim();
-  const state = newGame(player1, player2, body.ruleset);
+  const state = newGame(player1, player2, body.ruleset, body.ai);
   const key = newKey();
   await db.batch(insertGame(db, [player1, player2], state, key));
   return json({ key, name: `${player1} vs ${player2}`, ...state }, 201);
@@ -62,6 +65,7 @@ async function createGame(db, body) {
 
 function checkShot(state, body) {
   if (state.winner !== null) return "The game is over.";
+  if (state.awaitingFirst) return "Choose who breaks first.";
   if (body.shot !== state.shots) return "This shot was already played. Reload the game.";
   if (![body.vx, body.vy, body.time].every(Number.isFinite) || Math.hypot(body.vx, body.vy) > MAX_SPEED + 1) return "Invalid shot.";
   const before = new Set(state.balls.map(([n]) => n));
@@ -97,6 +101,23 @@ async function saveShot(db, game, body, extra = []) {
     .bind(JSON.stringify(next), game.id, game.state.shots), ...extra);
   await db.batch(statements);
   return { next };
+}
+
+// Saves a change that is not a shot (choosing who breaks, resigning), unless a shot was saved in between.
+async function saveState(db, game, next) {
+  const result = await db.prepare("UPDATE GameState SET STATE = ?, UPDATED = datetime('now') WHERE GAMEID = ? AND json_extract(STATE, '$.shots') = ?")
+    .bind(JSON.stringify(next), game.id, game.state.shots).run();
+  return result.meta.changes === 1;
+}
+
+async function gameAction(db, key, action, body) {
+  const game = await loadGame(db, "KEY", key);
+  if (!game) return fail(404, "Game not found.");
+  if (await db.prepare("SELECT 1 FROM Room WHERE GAMEID = ?").bind(game.id).first()) return fail(403, "That is an online game.");
+  const next = action === "first" ? chooseFirst(game.state, body.player) : resign(game.state, body.player);
+  if (next === game.state) return fail(409, "That can't be done now.");
+  if (!(await saveState(db, game, next))) return fail(409, "The game changed. Reload it.");
+  return json(view(key, { ...game, state: next }));
 }
 
 async function playShot(db, key, body) {
@@ -199,6 +220,19 @@ async function handleRooms(db, request, parts, url, body) {
     return error ? fail(409, error) : json(roomView(room, { ...game, state: next }, seat));
   }
 
+  if (method === "POST" && (parts[3] === "first" || parts[3] === "resign")) {
+    if (!room) return fail(404, "That game no longer exists.", { reason: "notfound" });
+    const seat = seatOf(room, body.token);
+    if (seat === null) return fail(403, "You are not in that game.", { reason: "forbidden" });
+    if (parts[3] === "first" && seat !== 0) return fail(403, "Player 1 chooses who breaks.");
+    const game = await loadGame(db, "GameState.GAMEID", room.GAMEID);
+    const next = parts[3] === "first" ? chooseFirst(game.state, body.player) : resign(game.state, seat);
+    if (next === game.state) return fail(409, "That can't be done now.");
+    if (!(await saveState(db, game, next))) return fail(409, "The game changed. Reload it.");
+    await db.prepare("UPDATE Room SET LAST_MOVE = ? WHERE CODE = ?").bind(Date.now(), code).run();
+    return json(roomView(room, { ...game, state: next }, seat));
+  }
+
   if (method === "DELETE" && parts.length === 3) {
     if (!room) return json({ ok: true });
     if (seatOf(room, body.token) !== 0) return fail(403, "Only the host can cancel a game.");
@@ -271,6 +305,9 @@ export default {
       }
       if (parts[1] === "games" && parts[3] === "shots" && parts.length === 4 && request.method === "POST") {
         return await playShot(env.DB, parts[2], body);
+      }
+      if (parts[1] === "games" && (parts[3] === "first" || parts[3] === "resign") && parts.length === 4 && request.method === "POST") {
+        return await gameAction(env.DB, parts[2], parts[3], body);
       }
       if (parts[1] === "rooms") return await handleRooms(env.DB, request, parts, url, body);
       if (parts[1] === "quick") return await handleQuick(env.DB, request, parts, body);
