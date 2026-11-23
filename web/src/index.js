@@ -54,7 +54,7 @@ async function createGame(db, body) {
   const error = checkNames(body.player1, body.player2);
   if (error) return fail(error.includes("taken") ? 409 : 400, error);
   const player1 = body.player1.trim(), player2 = body.player2.trim();
-  const state = newGame(player1, player2);
+  const state = newGame(player1, player2, body.ruleset);
   const key = newKey();
   await db.batch(insertGame(db, [player1, player2], state, key));
   return json({ key, name: `${player1} vs ${player2}`, ...state }, 201);
@@ -114,11 +114,11 @@ const seatOf = (room, token) => (token && room.SEAT0 === token ? 0 : token && ro
 // The game as a seated player sees it. The game's link key is left out, so the room can only be played with a token.
 const roomView = (room, game, seat) => ({ code: room.CODE, seat, seated: !!room.SEAT1, name: game.name, ...game.state });
 
-async function createRoom(db, names, paired) {
+async function createRoom(db, names, paired, ruleset) {
   for (let tries = 0; tries < 60; tries++) {
     const code = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
     const tokens = [hex(16), paired ? hex(16) : null];
-    const state = newGame(names[0], names[1] || "");
+    const state = newGame(names[0], names[1] || "", ruleset);
     const now = Date.now();
     try {
       await db.batch([
@@ -139,7 +139,7 @@ async function handleRooms(db, request, parts, url, body) {
   if (method === "POST" && parts.length === 2) {
     const name = cleanName(body.name);
     if (!name) return fail(400, "Choose a name to start.");
-    const { code, tokens } = await createRoom(db, [name], false);
+    const { code, tokens } = await createRoom(db, [name], false, body.ruleset);
     return json({ code, seat: 0, token: tokens[0] }, 201);
   }
 

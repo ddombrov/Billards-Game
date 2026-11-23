@@ -16,8 +16,27 @@ function ballSVG(number, size) {
   return el("circle", { r: size / 2, fill: BALL_COLORS[number] });
 }
 
+// Russian object balls are all red, each with its number on a white spot.
+function russianBallSVG(number, size) {
+  const g = el("g", {});
+  const r = size / 2;
+  el("circle", { r, fill: "#c8202b" }, g);
+  el("circle", { cx: -r * 0.3, cy: -r * 0.35, r: r * 0.35, fill: "#fff", "fill-opacity": 0.25 }, g);
+  el("circle", { r: r * 0.46, fill: "#fbf9f3" }, g);
+  const text = el("text", { "text-anchor": "middle", "dominant-baseline": "central", "font-size": r * 0.58, "font-weight": 700,
+                            "font-family": "Inter, system-ui, sans-serif", fill: "#151515" }, g);
+  text.textContent = number;
+  return g;
+}
+
 // A standalone ball for HTML layouts: the ball artwork in the modern look, a drawn ball in the classic one.
-function ballIcon(number, size, className) {
+function ballIcon(number, size, className, russian = false) {
+  if (russian && number > 0) {
+    const svg = el("svg", { width: size, height: size, viewBox: `${-size / 2} ${-size / 2} ${size} ${size}` });
+    if (className) svg.setAttribute("class", className);
+    svg.appendChild(russianBallSVG(number, size - 1));
+    return svg;
+  }
   if (getLook() === "modern") {
     const img = document.createElement("img");
     img.src = ballArt(number, true);
@@ -91,11 +110,13 @@ function forgetGame() {
 }
 
 // Creates a game in the database and opens it. Throws with the server's message, e.g. for a taken name.
-async function startGame(player1, player2) {
+const RULESET_NAMES = { eightball: "8-Ball", casual: "Casual 8-Ball", russian: "Russian" };
+
+async function startGame(player1, player2, ruleset = "eightball") {
   const response = await fetch("/api/games", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ player1, player2 }),
+    body: JSON.stringify({ player1, player2, ruleset }),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Could not start the game.");
@@ -103,11 +124,22 @@ async function startGame(player1, player2) {
 }
 
 const RULES_HTML = `
+  <h3>8-Ball</h3>
   <ul class="rules">
     <li>Players take turns. Player 1 breaks.</li>
     <li>The first player to pocket a ball (without scratching) takes that group: solids (1-7) or stripes (9-15). The other player gets the other group.</li>
     <li>Pocket one of your own balls and you shoot again. Otherwise the turn passes.</li>
     <li>Pocketing the cue ball is a scratch: the turn passes and the cue ball goes back to its starting spot.</li>
     <li>Clear your group, then sink the 8 to win. Sinking the 8 early, or scratching on it, loses the game.</li>
+  </ul>
+  <h3>Casual 8-Ball</h3>
+  <ul class="rules">
+    <li>The same as 8-Ball, except that sinking the 8 early or scratching on it doesn't lose: the 8 goes back on its spot and the turn passes.</li>
+  </ul>
+  <h3>Russian</h3>
+  <ul class="rules">
+    <li>All the object balls are red, and any of them counts for whoever pockets it. Pocket one and you shoot again.</li>
+    <li>A scratch passes the turn. Balls pocketed on that shot go back on the table, and so does one ball you had already pocketed.</li>
+    <li>The first player to pocket 8 balls wins.</li>
   </ul>
   <p class="description">To shoot, press on the table and drag away from the cue ball. Pull farther for more power and let go to shoot.</p>`;

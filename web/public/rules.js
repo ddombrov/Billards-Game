@@ -1,4 +1,4 @@
-// 8-ball rules, shared by the browser and the Worker (a port of eightball.py).
+// Pool rules, shared by the browser and the Worker (8-ball is a port of eightball.py).
 export const TABLE_WIDTH = 1350;   // mm, matches PHYLIB_TABLE_WIDTH
 export const TABLE_LENGTH = 2700;  // mm, matches PHYLIB_TABLE_LENGTH
 export const BALL_DIAMETER = 57;   // mm, matches PHYLIB_BALL_DIAMETER
@@ -14,6 +14,13 @@ const RACK = [[1], [9, 2], [10, 8, 3], [11, 4, 12, 5], [6, 13, 7, 14, 15]];
 const RACK_COLUMN = BALL_DIAMETER + 1;
 const RACK_ROW = 51; // rows overlap like a real triangle but stay just clear of touching
 
+// 8-Ball is the standard game. Casual 8-Ball forgives the 8: sinking it early or scratching on it puts it back
+// on the table instead of losing. Russian is a free pyramid: every object ball counts for whoever pockets it, and
+// the first to 8 wins.
+export const RULESETS = { eightball: "8-Ball", casual: "Casual 8-Ball", russian: "Russian" };
+export const RUSSIAN_TARGET = 8;
+export const cleanRuleset = (r) => (Object.hasOwn(RULESETS, r) ? r : "eightball");
+
 export const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 // Returns an error message, or null when the two names can start a game.
@@ -28,7 +35,7 @@ export function checkNames(player1, player2) {
 export const inGroup = (n, group) =>
   (group === "solids" && n >= 1 && n <= 7) || (group === "stripes" && n >= 9 && n <= 15);
 
-export function newGame(player1, player2) {
+export function newGame(player1, player2, ruleset = "eightball") {
   const balls = [[0, ...HEAD_SPOT]];
   RACK.forEach((numbers, row) => numbers.forEach((n, col) =>
     balls.push([n, FOOT_SPOT[0] + (col - row / 2) * RACK_COLUMN, FOOT_SPOT[1] - row * RACK_ROW])));
@@ -40,6 +47,9 @@ export function newGame(player1, player2) {
     shots: 0,
     message: `${player1} breaks.`,
     balls,
+    ruleset: cleanRuleset(ruleset),
+    // Russian only: the balls each player has pocketed.
+    potted: [[], []],
   };
 }
 
@@ -49,9 +59,49 @@ function respotCueBall(balls) {
   return [0, x, y];
 }
 
+// Puts an object ball back on the foot spot, or just behind it toward the far cushion when that is taken.
+function respotBall(balls, n) {
+  let [x, y] = FOOT_SPOT;
+  while (balls.some(([, bx, by]) => Math.hypot(x - bx, y - by) < BALL_DIAMETER + 1)) y -= BALL_DIAMETER;
+  return [n, x, Math.max(BALL_DIAMETER, y)];
+}
+
+function applyRussian(state, pocketed, finalBalls) {
+  const next = { ...state, shots: state.shots + 1, potted: state.potted.map((list) => [...list]) };
+  const shooter = state.turn, other = 1 - shooter;
+  const name = state.players[shooter];
+  const scratch = pocketed.includes(0);
+  const objects = pocketed.filter((n) => n !== 0);
+  let balls = finalBalls.filter(([n]) => n !== 0 || !scratch);
+  if (scratch) {
+    // A scratch passes the turn: anything pocketed with it goes back, and so does one ball the shooter had.
+    const back = [...objects];
+    if (next.potted[shooter].length) back.push(next.potted[shooter].pop());
+    for (const n of back) balls = [...balls, respotBall(balls, n)];
+    balls = [...balls, respotCueBall(balls)];
+    next.balls = balls;
+    next.turn = other;
+    next.message = `Scratch!${back.length ? ` ${back.length === 1 ? "A ball goes" : "Balls go"} back on the table.` : ""} ${state.players[other]}'s turn.`;
+    return next;
+  }
+  next.balls = balls;
+  next.potted[shooter].push(...objects);
+  if (next.potted[shooter].length >= RUSSIAN_TARGET) {
+    next.winner = shooter;
+    next.message = `${name} pockets ${RUSSIAN_TARGET} balls and wins!`;
+  } else if (objects.length) {
+    next.message = `Pocketed ${objects.join(", ")}. Shoot again, ${name}.`;
+  } else {
+    next.turn = other;
+    next.message = `${state.players[other]}'s turn.`;
+  }
+  return next;
+}
+
 // Applies a finished shot: pocketed lists ball numbers in the order they dropped and balls the
 // final positions. Returns the next state; the input state is not changed.
 export function applyShot(state, pocketed, finalBalls) {
+  if (state.ruleset === "russian") return applyRussian(state, pocketed, finalBalls);
   const next = { ...state, groups: [...state.groups], shots: state.shots + 1 };
   const shooter = state.turn, other = 1 - shooter;
   const name = state.players[shooter];
@@ -78,6 +128,10 @@ export function applyShot(state, pocketed, finalBalls) {
     if (cleared && !scratch) {
       next.winner = shooter;
       next.message = `${name} sinks the 8 ball and wins!`;
+    } else if (state.ruleset === "casual") {
+      next.balls = [...next.balls, respotBall(next.balls, 8)];
+      next.turn = other;
+      next.message = `${name} ${cleared ? "scratched on the 8" : "sank the 8 early"}, so it goes back on the table. ${state.players[other]}'s turn.`;
     } else {
       next.winner = other;
       const reason = cleared ? "scratched on the 8" : "sank the 8 ball early";

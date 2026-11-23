@@ -79,6 +79,14 @@
       <h2>Play on this device</h2>
       <p class="description">Enter both players' names. Player 1 breaks.</p>
       <div class="body">
+        <div>
+          <div class="field-label">Rules</div>
+          <div class="segmented rules-choice">
+            <button type="button" data-ruleset="eightball" class="on">8-Ball</button>
+            <button type="button" data-ruleset="casual">Casual 8-Ball</button>
+            <button type="button" data-ruleset="russian">Russian</button>
+          </div>
+        </div>
         <div class="players">
           <div>
             <div class="field-label"><label for="player1">Player 1</label></div>
@@ -118,6 +126,14 @@
         <div class="segmented" id="onlineTabs">
           <button type="button" class="on" data-tab="create">Create a game</button>
           <button type="button" data-tab="join">Join with a code</button>
+        </div>
+        <div id="onlineRules">
+          <div class="field-label">Rules</div>
+          <div class="segmented rules-choice">
+            <button type="button" data-ruleset="eightball" class="on">8-Ball</button>
+            <button type="button" data-ruleset="casual">Casual 8-Ball</button>
+            <button type="button" data-ruleset="russian">Russian</button>
+          </div>
         </div>
         <div>
           <div class="field-label"><label for="onlineName">Your name</label></div>
@@ -195,6 +211,12 @@
     const showError = (id, message) => { $(id).textContent = message; $(id).hidden = !message; };
     const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
+    let ruleset = "eightball";
+    document.querySelectorAll(".rules-choice button").forEach((b) => b.addEventListener("click", () => {
+      ruleset = b.dataset.ruleset;
+      document.querySelectorAll(".rules-choice button").forEach((x) => x.classList.toggle("on", x.dataset.ruleset === ruleset));
+    }));
+
     let quickTicket = null, quickTimer = null;
     function stopQuick() {
       clearInterval(quickTimer);
@@ -245,7 +267,7 @@
       start.disabled = true;
       try {
         rememberName(p1.value);
-        await startGame(p1.value.trim(), p2.value.trim());
+        await startGame(p1.value.trim(), p2.value.trim(), ruleset);
       } catch (err) {
         showError("setupError", err.message);
         start.disabled = false;
@@ -294,6 +316,7 @@
       tab = next;
       document.querySelectorAll("#onlineTabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
       $("codeField").hidden = tab !== "join";
+      $("onlineRules").hidden = tab === "join";
       $("seats").hidden = true;
       onlineGo.hidden = false;
       showError("onlineError", "");
@@ -332,7 +355,7 @@
       onlineGo.disabled = true;
       try {
         rememberName(name);
-        if (tab === "create") goToRoom(await api("POST", "/rooms", { name }));
+        if (tab === "create") goToRoom(await api("POST", "/rooms", { name, ruleset }));
         else goToRoom(await api("POST", `/rooms/${codeInput.value}/join`, { name }));
       } catch (err) {
         if (err.reason === "full" && err.names) showSeats(codeInput.value, err.names);

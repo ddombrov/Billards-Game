@@ -211,6 +211,7 @@
   <div class="dialog small">
     <h2>Settings</h2>
     <div class="body">
+      <div class="code-row"><span>Rules</span><strong id="rulesetName"></strong></div>
       <div class="code-row" id="codeRow" hidden><span>Game code</span><strong id="codeText"></strong>
         <button type="button" class="btn btn-ghost" id="copyRoomCode">Copy</button></div>
       <div>
@@ -355,7 +356,10 @@ function fitTable() {
 const ballTransform = (at) => `translate(${at})${upright ? " rotate(90)" : ""}`;
 
 // The ball artwork is 256 units wide with the ball centred at (128, 120) and a 108-unit radius.
+const russian = () => state?.ruleset === "russian";
+
 function ballNode(n) {
+  if (russian() && n > 0) return russianBallSVG(n, BALL_RADIUS * 2);
   if (look === "classic") return ballSVG(n, BALL_RADIUS * 2);
   const k = BALL_RADIUS / 108;
   const g = el("g", {});
@@ -397,6 +401,7 @@ function eventMessage() {
 }
 
 function render() {
+  $("rulesetName").textContent = RULESET_NAMES[state.ruleset] ?? RULESET_NAMES.eightball;
   document.title = `${state.players[0]} vs ${state.players[1] || "…"} · 8-Ball`;
   messageEl.textContent = busy ? "Rolling…" : online && !state.seated ? "Waiting for a second player…" : eventMessage();
   const onTable = new Set(state.balls.map(b => b[0]));
@@ -404,12 +409,18 @@ function render() {
     const card = $("p" + i);
     card.classList.toggle("active", state.winner === null && state.turn === i);
     card.querySelector(".name").textContent = (name || "Waiting…") + (online && mine.seat === i ? " (you)" : "");
+    const tray = card.querySelector(".tray");
+    tray.innerHTML = "";
+    if (russian()) {
+      const potted = state.potted[i];
+      card.querySelector(".group").textContent = `${potted.length} of 8 balls`;
+      for (const n of potted) tray.appendChild(ballIcon(n, 22, undefined, true));
+      return;
+    }
     const group = state.groups[i];
     const left = group ? [...onTable].filter(n => inGroup(n, group)).sort((a, b) => a - b) : [];
     card.querySelector(".group").textContent = !group ? "Open table"
       : (group === "solids" ? "Solids" : "Stripes") + (left.length ? ` · ${left.length} left` : " · on the 8");
-    const tray = card.querySelector(".tray");
-    tray.innerHTML = "";
     if (group && left.length === 0 && onTable.has(8)) left.push(8);
     for (const n of left) tray.appendChild(ballIcon(n, 22));
   });
@@ -419,7 +430,7 @@ function render() {
     if (!online) forgetGame();
     const ball = $("winnerBall");
     ball.innerHTML = "";
-    ball.appendChild(ballIcon(8, 56));
+    ball.appendChild(ballIcon(8, 56, undefined, russian()));
     $("winnerTitle").textContent = state.players[state.winner] + " wins!";
     $("winnerText").textContent = state.message;
     $("winnerDialog").hidden = false;
@@ -431,7 +442,7 @@ $("rematch").addEventListener("click", async () => {
   const button = $("rematch");
   button.disabled = true;
   try {
-    await startGame(state.players[0], state.players[1]);
+    await startGame(state.players[0], state.players[1], state.ruleset);
   } catch (error) {
     $("rematchError").textContent = error.message;
     $("rematchError").hidden = false;
