@@ -15,10 +15,10 @@ const RACK_COLUMN = BALL_DIAMETER + 1;
 const RACK_ROW = 51; // rows overlap like a real triangle but stay just clear of touching
 
 // 8-Ball is the standard game. Casual 8-Ball forgives the 8: sinking it early or scratching on it puts it back
-// on the table instead of losing. Russian is a free pyramid: every object ball counts for whoever pockets it, and
-// the first to 8 wins.
-export const RULESETS = { eightball: "8-Ball", casual: "Casual 8-Ball", russian: "Russian" };
-export const RUSSIAN_TARGET = 8;
+// on the table instead of losing. All Red has every object ball red: each counts for whoever pockets it, and the
+// first to 8 wins.
+export const RULESETS = { eightball: "8-Ball", casual: "Casual 8-Ball", allred: "All Red" };
+export const ALL_RED_TARGET = 8;
 export const cleanRuleset = (r) => (Object.hasOwn(RULESETS, r) ? r : "eightball");
 
 export const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -48,7 +48,7 @@ export function newGame(player1, player2, ruleset = "eightball") {
     message: `${player1} breaks.`,
     balls,
     ruleset: cleanRuleset(ruleset),
-    // Russian only: the balls each player has pocketed.
+    // All Red only: the balls each player has pocketed.
     potted: [[], []],
   };
 }
@@ -66,7 +66,7 @@ function respotBall(balls, n) {
   return [n, x, Math.max(BALL_DIAMETER, y)];
 }
 
-function applyRussian(state, pocketed, finalBalls) {
+function applyAllRed(state, pocketed, finalBalls) {
   const next = { ...state, shots: state.shots + 1, potted: state.potted.map((list) => [...list]) };
   const shooter = state.turn, other = 1 - shooter;
   const name = state.players[shooter];
@@ -86,9 +86,9 @@ function applyRussian(state, pocketed, finalBalls) {
   }
   next.balls = balls;
   next.potted[shooter].push(...objects);
-  if (next.potted[shooter].length >= RUSSIAN_TARGET) {
+  if (next.potted[shooter].length >= ALL_RED_TARGET) {
     next.winner = shooter;
-    next.message = `${name} pockets ${RUSSIAN_TARGET} balls and wins!`;
+    next.message = `${name} pockets ${ALL_RED_TARGET} balls and wins!`;
   } else if (objects.length) {
     next.message = `Pocketed ${objects.join(", ")}. Shoot again, ${name}.`;
   } else {
@@ -101,7 +101,7 @@ function applyRussian(state, pocketed, finalBalls) {
 // Applies a finished shot: pocketed lists ball numbers in the order they dropped and balls the
 // final positions. Returns the next state; the input state is not changed.
 export function applyShot(state, pocketed, finalBalls) {
-  if (state.ruleset === "russian") return applyRussian(state, pocketed, finalBalls);
+  if (state.ruleset === "allred") return applyAllRed(state, pocketed, finalBalls);
   const next = { ...state, groups: [...state.groups], shots: state.shots + 1 };
   const shooter = state.turn, other = 1 - shooter;
   const name = state.players[shooter];

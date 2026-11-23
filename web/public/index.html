@@ -79,14 +79,6 @@
       <h2>Play on this device</h2>
       <p class="description">Enter both players' names. Player 1 breaks.</p>
       <div class="body">
-        <div>
-          <div class="field-label">Rules</div>
-          <div class="segmented rules-choice">
-            <button type="button" data-ruleset="eightball" class="on">8-Ball</button>
-            <button type="button" data-ruleset="casual">Casual 8-Ball</button>
-            <button type="button" data-ruleset="russian">Russian</button>
-          </div>
-        </div>
         <div class="players">
           <div>
             <div class="field-label"><label for="player1">Player 1</label></div>
@@ -126,14 +118,6 @@
         <div class="segmented" id="onlineTabs">
           <button type="button" class="on" data-tab="create">Create a game</button>
           <button type="button" data-tab="join">Join with a code</button>
-        </div>
-        <div id="onlineRules">
-          <div class="field-label">Rules</div>
-          <div class="segmented rules-choice">
-            <button type="button" data-ruleset="eightball" class="on">8-Ball</button>
-            <button type="button" data-ruleset="casual">Casual 8-Ball</button>
-            <button type="button" data-ruleset="russian">Russian</button>
-          </div>
         </div>
         <div>
           <div class="field-label"><label for="onlineName">Your name</label></div>
@@ -180,6 +164,14 @@
       <h2>Settings</h2>
       <div class="body">
         <div>
+          <div class="field-label">Rules</div>
+          <div class="segmented" id="ruleTabs">
+            <button type="button" data-ruleset="eightball">8-Ball</button>
+            <button type="button" data-ruleset="casual">Casual 8-Ball</button>
+            <button type="button" data-ruleset="allred">All Red</button>
+          </div>
+        </div>
+        <div>
           <div class="field-label">Table</div>
           <div class="segmented" id="lookTabs">
             <button type="button" data-look="modern">Modern</button>
@@ -210,12 +202,6 @@
     const close = (id) => { $(id).hidden = true; };
     const showError = (id, message) => { $(id).textContent = message; $(id).hidden = !message; };
     const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
-
-    let ruleset = "eightball";
-    document.querySelectorAll(".rules-choice button").forEach((b) => b.addEventListener("click", () => {
-      ruleset = b.dataset.ruleset;
-      document.querySelectorAll(".rules-choice button").forEach((x) => x.classList.toggle("on", x.dataset.ruleset === ruleset));
-    }));
 
     let quickTicket = null, quickTimer = null;
     function stopQuick() {
@@ -255,6 +241,7 @@
 
     function openSetup() {
       if (!p1.value.trim()) p1.value = savedName();
+      if (!p2.value.trim()) p2.value = savedName2();
       validate();
       open("setupDialog");
       (p1.value.trim() ? p2 : p1).focus();
@@ -267,14 +254,15 @@
       start.disabled = true;
       try {
         rememberName(p1.value);
-        await startGame(p1.value.trim(), p2.value.trim(), ruleset);
+        rememberName2(p2.value);
+        await startGame(p1.value.trim(), p2.value.trim());
       } catch (err) {
         showError("setupError", err.message);
         start.disabled = false;
       }
     });
 
-    // Like Splendor Duel: starting a game on this device first offers to pick the unfinished one back up.
+    // Starting a game on this device first offers to pick the unfinished one back up.
     let resumable = null;
     async function checkResume() {
       const key = lastGame();
@@ -316,7 +304,6 @@
       tab = next;
       document.querySelectorAll("#onlineTabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
       $("codeField").hidden = tab !== "join";
-      $("onlineRules").hidden = tab === "join";
       $("seats").hidden = true;
       onlineGo.hidden = false;
       showError("onlineError", "");
@@ -355,7 +342,7 @@
       onlineGo.disabled = true;
       try {
         rememberName(name);
-        if (tab === "create") goToRoom(await api("POST", "/rooms", { name, ruleset }));
+        if (tab === "create") goToRoom(await api("POST", "/rooms", { name, ruleset: getRuleset() }));
         else goToRoom(await api("POST", `/rooms/${codeInput.value}/join`, { name }));
       } catch (err) {
         if (err.reason === "full" && err.names) showSeats(codeInput.value, err.names);
@@ -411,7 +398,11 @@
       document.querySelectorAll("#lookTabs button").forEach((b) => b.classList.toggle("on", b.dataset.look === getLook()));
     }
     document.querySelectorAll("#lookTabs button").forEach((b) => b.addEventListener("click", () => { setLook(b.dataset.look); showLook(); }));
-    $("openSettings").addEventListener("click", () => { showLook(); open("settingsDialog"); });
+    function showRules() {
+      document.querySelectorAll("#ruleTabs button").forEach((b) => b.classList.toggle("on", b.dataset.ruleset === getRuleset()));
+    }
+    document.querySelectorAll("#ruleTabs button").forEach((b) => b.addEventListener("click", () => { setRuleset(b.dataset.ruleset); showRules(); }));
+    $("openSettings").addEventListener("click", () => { showLook(); showRules(); open("settingsDialog"); });
     $("openRules").addEventListener("click", () => { close("settingsDialog"); open("rulesDialog"); });
 
     const MODES = { device: playOnDevice, online: playOnline, quick: playQuick };

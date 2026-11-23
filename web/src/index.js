@@ -3,7 +3,7 @@
 //     POST /api/games            { player1, player2 }                  -> new game
 //     GET  /api/games/:key                                              -> game
 //     POST /api/games/:key/shots { shot, vx, vy, time, pocketed, balls } -> game after the shot
-//   Online games, like Splendor Duel: a 5-digit code, and a private token per seat.
+//   Online games: a 5-digit code, and a private token per seat.
 //     POST   /api/rooms                 { name }          -> { code, seat: 0, token }
 //     POST   /api/rooms/:code/join      { name }          -> { code, seat: 1, token }, or a "full" error with both names
 //     POST   /api/rooms/:code/claim     { seat }          -> a new token for that seat, for a player who lost theirs

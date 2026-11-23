@@ -15,7 +15,7 @@
   .wrap { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 18px; }
   .side { display: flex; flex-direction: column; gap: 12px; min-height: 0; padding-top: 40px; grid-column: 2; grid-row: 1; }
 
-  /* Settings sits in the top-right corner, as in Splendor Duel; the table starts below it. */
+  /* Settings sits in the top-right corner, above the column of players. */
   .settings-btn { position: fixed; top: 10px; right: 14px; z-index: 5; color: var(--muted-foreground); }
   .settings-btn img { width: 24px; height: 24px; }
   .menu { display: grid; gap: 8px; justify-items: center; }
@@ -23,6 +23,8 @@
   .code-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px;
               border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; }
   .code-row strong { letter-spacing: .2em; }
+  .note { margin: 8px 0 0; color: var(--muted-foreground); font-size: 13px; }
+  .segmented button:disabled { opacity: .5; cursor: default; }
 
   /* Scoreboard */
   .scoreboard {
@@ -211,9 +213,17 @@
   <div class="dialog small">
     <h2>Settings</h2>
     <div class="body">
-      <div class="code-row"><span>Rules</span><strong id="rulesetName"></strong></div>
       <div class="code-row" id="codeRow" hidden><span>Game code</span><strong id="codeText"></strong>
         <button type="button" class="btn btn-ghost" id="copyRoomCode">Copy</button></div>
+      <div>
+        <div class="field-label">Rules</div>
+        <div class="segmented" id="ruleTabs">
+          <button type="button" data-ruleset="eightball">8-Ball</button>
+          <button type="button" data-ruleset="casual">Casual 8-Ball</button>
+          <button type="button" data-ruleset="allred">All Red</button>
+        </div>
+        <p class="note" id="rulesNote" hidden>Fixed for an online game.</p>
+      </div>
       <div>
         <div class="field-label">Table</div>
         <div class="segmented" id="lookTabs">
@@ -227,6 +237,18 @@
       </div>
     </div>
     <div class="footer"><button type="button" class="btn btn-primary" data-close>Done</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="newGameDialog" hidden>
+  <div class="dialog small">
+    <h2>Start a new game?</h2>
+    <p class="description">The new rules apply to a new game.</p>
+    <p class="error" id="newGameError" hidden></p>
+    <div class="footer">
+      <button type="button" class="btn btn-outline" data-close>Keep playing</button>
+      <button type="button" class="btn btn-primary" id="newGameGo">New game</button>
+    </div>
   </div>
 </div>
 
@@ -289,7 +311,7 @@ document.querySelectorAll(".overlay").forEach((overlay) => {
   });
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") ["leaveDialog", "rulesDialog", "settingsDialog"].forEach((id) => ($(id).hidden = true));
+  if (e.key === "Escape") ["leaveDialog", "rulesDialog", "settingsDialog", "newGameDialog"].forEach((id) => ($(id).hidden = true));
 });
 $("leave").addEventListener("click", () => { $("settingsDialog").hidden = true; $("leaveDialog").hidden = false; });
 $("openRules").addEventListener("click", () => { $("settingsDialog").hidden = true; $("rulesDialog").hidden = false; });
@@ -298,6 +320,24 @@ document.querySelectorAll("#lookTabs button").forEach((b) => {
   b.classList.toggle("on", b.dataset.look === look);
   // The table is drawn once, so a new look is applied by reloading; the game itself is saved.
   b.addEventListener("click", () => { if (b.dataset.look !== look) { setLook(b.dataset.look); location.reload(); } });
+});
+let pendingRules = null;
+document.querySelectorAll("#ruleTabs button").forEach((b) => b.addEventListener("click", () => {
+  if (online || !state || b.dataset.ruleset === (state.ruleset ?? "eightball")) return;
+  pendingRules = b.dataset.ruleset;
+  $("settingsDialog").hidden = true;
+  $("newGameDialog").hidden = false;
+}));
+$("newGameGo").addEventListener("click", async () => {
+  $("newGameGo").disabled = true;
+  setRuleset(pendingRules);
+  try {
+    await startGame(state.players[0], state.players[1], pendingRules);
+  } catch (error) {
+    $("newGameError").textContent = error.message;
+    $("newGameError").hidden = false;
+    $("newGameGo").disabled = false;
+  }
 });
 if (online) {
   $("leaveText").textContent = `To come back, choose Play with friends, then join with code ${roomCode}.`;
@@ -356,10 +396,10 @@ function fitTable() {
 const ballTransform = (at) => `translate(${at})${upright ? " rotate(90)" : ""}`;
 
 // The ball artwork is 256 units wide with the ball centred at (128, 120) and a 108-unit radius.
-const russian = () => state?.ruleset === "russian";
+const allRed = () => state?.ruleset === "allred";
 
 function ballNode(n) {
-  if (russian() && n > 0) return russianBallSVG(n, BALL_RADIUS * 2);
+  if (allRed() && n > 0) return redBallSVG(n, BALL_RADIUS * 2);
   if (look === "classic") return ballSVG(n, BALL_RADIUS * 2);
   const k = BALL_RADIUS / 108;
   const g = el("g", {});
@@ -368,7 +408,23 @@ function ballNode(n) {
 }
 
 const ballNodes = {};
-function placeBalls(balls) {
+const POCKET_SPOTS = [[0, 0], [0, 1350], [0, 2700], [1350, 0], [1350, 1350], [1350, 2700]].map(([x, y]) => toScreen(x, y));
+const SINK_MS = 240;
+function sink(node) {
+  const [x, y] = node.dataset.at.split(" ").map(Number);
+  const [px, py] = POCKET_SPOTS.reduce((a, b) => (Math.hypot(b[0] - x, b[1] - y) < Math.hypot(a[0] - x, a[1] - y) ? b : a));
+  const start = performance.now();
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / SINK_MS), e = t * t;
+    node.setAttribute("transform", `translate(${x + (px - x) * e} ${y + (py - y) * e}) scale(${1 - 0.5 * e})${upright ? " rotate(90)" : ""}`);
+    node.style.opacity = String(1 - 0.9 * e);
+    if (t < 1) requestAnimationFrame(step);
+    else node.remove();
+  };
+  requestAnimationFrame(step);
+}
+
+function placeBalls(balls, { dropping = false } = {}) {
   const present = new Set();
   for (const [n, x, y] of balls) {
     present.add(n);
@@ -382,7 +438,8 @@ function placeBalls(balls) {
   }
   for (const n of Object.keys(ballNodes)) {
     if (!present.has(Number(n))) {
-      ballNodes[n].remove();
+      if (dropping) sink(ballNodes[n]);
+      else ballNodes[n].remove();
       delete ballNodes[n];
     }
   }
@@ -401,7 +458,11 @@ function eventMessage() {
 }
 
 function render() {
-  $("rulesetName").textContent = RULESET_NAMES[state.ruleset] ?? RULESET_NAMES.eightball;
+  document.querySelectorAll("#ruleTabs button").forEach((b) => {
+    b.classList.toggle("on", b.dataset.ruleset === (state.ruleset ?? "eightball"));
+    b.disabled = online;
+  });
+  $("rulesNote").hidden = !online;
   document.title = `${state.players[0]} vs ${state.players[1] || "…"} · 8-Ball`;
   messageEl.textContent = busy ? "Rolling…" : online && !state.seated ? "Waiting for a second player…" : eventMessage();
   const onTable = new Set(state.balls.map(b => b[0]));
@@ -411,7 +472,7 @@ function render() {
     card.querySelector(".name").textContent = (name || "Waiting…") + (online && mine.seat === i ? " (you)" : "");
     const tray = card.querySelector(".tray");
     tray.innerHTML = "";
-    if (russian()) {
+    if (allRed()) {
       const potted = state.potted[i];
       card.querySelector(".group").textContent = `${potted.length} of 8 balls`;
       for (const n of potted) tray.appendChild(ballIcon(n, 22, undefined, true));
@@ -430,7 +491,7 @@ function render() {
     if (!online) forgetGame();
     const ball = $("winnerBall");
     ball.innerHTML = "";
-    ball.appendChild(ballIcon(8, 56, undefined, russian()));
+    ball.appendChild(ballIcon(8, 56, undefined, allRed()));
     $("winnerTitle").textContent = state.players[state.winner] + " wins!";
     $("winnerText").textContent = state.message;
     $("winnerDialog").hidden = false;
@@ -600,9 +661,9 @@ function animate(frames) {
     function step(now) {
       if (start === null) start = now;
       const index = Math.min(Math.floor((now - start) / 1000 * PLAYBACK / FRAME_RATE), frames.length - 1);
-      placeBalls(frames[index]);
+      placeBalls(frames[index], { dropping: true });
       if (skipRequested || index === frames.length - 1) {
-        placeBalls(frames[frames.length - 1]);
+        placeBalls(frames[frames.length - 1], { dropping: true });
         skipButton.hidden = true;
         resolve();
       } else {

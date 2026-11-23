@@ -14,7 +14,7 @@ A two-player 8-ball pool game built on a physics engine written in C (`phylib.c`
 - **8-ball rules:** breaks, groups, fouls, scratches and the 8-ball finish are enforced for both players.
 - **Play anywhere:** on one device, online with a friend using a 5-digit game code, or against a stranger with quick match. Online shots are replayed on the other player's screen with the same physics.
 - **Saved games:** every game, shot and resting table is stored. An unfinished game on this device can be resumed, and an online player who loses their seat can take it back with the code.
-- **Three rule sets:** standard 8-Ball; Casual 8-Ball, where sinking the 8 early or scratching on it puts it back on the table instead of losing; and Russian, where every object ball is red and counts for whoever pockets it, and the first to 8 balls wins.
+- **Three rule sets:** standard 8-Ball; Casual 8-Ball, where sinking the 8 early or scratching on it puts it back on the table instead of losing; and All Red, where every object ball is red and counts for whoever pockets it, and the first to 8 balls wins. The rules are chosen in Settings before a game, as is the table look.
 - **Two looks:** a modern table with ball and cue artwork, or the classic look of the original Python version (a flat pale table with plain coloured balls), chosen in Settings on the home page or during a game. On a phone held upright, the table stands upright too. The browser also remembers your name.
 - **Confetti** when someone wins.
 

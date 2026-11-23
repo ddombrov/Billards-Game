@@ -16,8 +16,8 @@ function ballSVG(number, size) {
   return el("circle", { r: size / 2, fill: BALL_COLORS[number] });
 }
 
-// Russian object balls are all red, each with its number on a white spot.
-function russianBallSVG(number, size) {
+// All Red object balls, each with its number on a white spot.
+function redBallSVG(number, size) {
   const g = el("g", {});
   const r = size / 2;
   el("circle", { r, fill: "#c8202b" }, g);
@@ -30,11 +30,11 @@ function russianBallSVG(number, size) {
 }
 
 // A standalone ball for HTML layouts: the ball artwork in the modern look, a drawn ball in the classic one.
-function ballIcon(number, size, className, russian = false) {
-  if (russian && number > 0) {
+function ballIcon(number, size, className, allRed = false) {
+  if (allRed && number > 0) {
     const svg = el("svg", { width: size, height: size, viewBox: `${-size / 2} ${-size / 2} ${size} ${size}` });
     if (className) svg.setAttribute("class", className);
-    svg.appendChild(russianBallSVG(number, size - 1));
+    svg.appendChild(redBallSVG(number, size - 1));
     return svg;
   }
   if (getLook() === "modern") {
@@ -53,7 +53,7 @@ function ballIcon(number, size, className, russian = false) {
 
 const ballArt = (n, flat) => `/img/${flat ? "balls-flat" : "balls"}/ball-${n === 0 ? "cue" : n}.svg`;
 
-// The look of the table, balls and cue, chosen in Settings and kept in this browser, like Splendor Duel's.
+// The look of the table, balls and cue, chosen in Settings and kept in this browser.
 const LOOK_KEY = "eightball:look";
 function getLook() {
   try { return localStorage.getItem(LOOK_KEY) === "classic" ? "classic" : "modern"; } catch { return "modern"; }
@@ -110,9 +110,26 @@ function forgetGame() {
 }
 
 // Creates a game in the database and opens it. Throws with the server's message, e.g. for a taken name.
-const RULESET_NAMES = { eightball: "8-Ball", casual: "Casual 8-Ball", russian: "Russian" };
+// The rules for new games, chosen in Settings before a game starts and kept in this browser.
+const RULESET_NAMES = { eightball: "8-Ball", casual: "Casual 8-Ball", allred: "All Red" };
+const RULESET_KEY = "eightball:ruleset";
+function getRuleset() {
+  try { const v = localStorage.getItem(RULESET_KEY); return v in RULESET_NAMES ? v : "eightball"; } catch { return "eightball"; }
+}
+function setRuleset(v) {
+  try { localStorage.setItem(RULESET_KEY, v); } catch { /* storage may be blocked */ }
+}
 
-async function startGame(player1, player2, ruleset = "eightball") {
+// Player 2's name on this device, remembered like player 1's.
+const NAME2_KEY = "eightball:name2";
+function savedName2() {
+  try { return localStorage.getItem(NAME2_KEY) || ""; } catch { return ""; }
+}
+function rememberName2(name) {
+  try { if (name) localStorage.setItem(NAME2_KEY, name.trim()); } catch { /* storage may be blocked */ }
+}
+
+async function startGame(player1, player2, ruleset = getRuleset()) {
   const response = await fetch("/api/games", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -136,7 +153,7 @@ const RULES_HTML = `
   <ul class="rules">
     <li>The same as 8-Ball, except that sinking the 8 early or scratching on it doesn't lose: the 8 goes back on its spot and the turn passes.</li>
   </ul>
-  <h3>Russian</h3>
+  <h3>All Red</h3>
   <ul class="rules">
     <li>All the object balls are red, and any of them counts for whoever pockets it. Pocket one and you shoot again.</li>
     <li>A scratch passes the turn. Balls pocketed on that shot go back on the table, and so does one ball you had already pocketed.</li>
